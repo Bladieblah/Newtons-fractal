@@ -30,6 +30,7 @@ cl_device_id device_id = NULL;
 cl_context context = NULL;
 cl_command_queue command_queue = NULL;
 
+cl_mem rootmobj = NULL;
 cl_mem mapmobj = NULL;
 cl_mem datamobj = NULL;
 
@@ -42,17 +43,22 @@ cl_int ret;
 size_t source_size;
 char *source_str;
 
-char to_change;
-
 // Array to be drawn
 unsigned int data[size_y*size_x*3];
 
+// Colourmap stuff
 float *colourMap;
 int nColours = 255;
 
 // Kernel size for parallelisation
 size_t global_item_size[2] = {(size_t)size_x, (size_t)size_y};
 size_t local_item_size[2] = {(size_t)size_x, (size_t)size_y};
+
+// Roots
+float *roots;
+int nRoots = 3;
+
+// Functions
 
 void makeColourmap() {
     std::vector<float> x = {0., 0.2, 0.4, 0.7, 1.};
@@ -75,13 +81,25 @@ void makeColourmap() {
 }
 
 void setKernelArgs() {
-    ret = clSetKernelArg(kernel, 0, sizeof(cl_mem), (void *)&mapmobj);
-    ret = clSetKernelArg(kernel, 1, sizeof(int), &nColours);
-    ret = clSetKernelArg(kernel, 2, sizeof(cl_mem), (void *)&datamobj);
+    ret = clSetKernelArg(kernel, 0, sizeof(cl_mem), (void *)&rootmobj);
+    ret = clSetKernelArg(kernel, 1, sizeof(cl_mem), (void *)&mapmobj);
+    ret = clSetKernelArg(kernel, 2, sizeof(int), &nColours);
+    ret = clSetKernelArg(kernel, 3, sizeof(cl_mem), (void *)&datamobj);
 }
 
 void initData() {
-    return;
+    float offset[3] = {0.1, 0, -0.1};
+    float theta;
+    
+    for (int i=0; i<nRoots; i++) {
+        theta = 2 * M_PI / nRoots * i + offset[i];
+        roots[2*i] = cos(theta) / 2.3 + 0.5;
+        roots[2*i + 1] = sin(theta) / 2.2 + 0.5;
+    }
+    
+    for (int i=0; i<nRoots; i++) {
+        fprintf(stderr, "(%.2f, %.2f)\n", roots[2*i], roots[2*i+1]);
+    }
 }
 
 void prepare() {
@@ -99,6 +117,8 @@ void prepare() {
     
     srand(time(NULL));
     
+    roots = (float *)malloc(2 * nRoots * sizeof(float));
+    
     initData();
     
     /* Get Platform/Device Information */
@@ -112,7 +132,8 @@ void prepare() {
     command_queue = clCreateCommandQueue(context, device_id, 0, &ret);
 
     /* Create Buffer Object */
-    mapmobj = clCreateBuffer(context, CL_MEM_READ_WRITE, 3*nColours*sizeof(float), NULL, &ret);
+    rootmobj = clCreateBuffer(context, CL_MEM_READ_WRITE, 3*nRoots*sizeof(float), NULL, &ret);
+    mapmobj  = clCreateBuffer(context, CL_MEM_READ_WRITE, 3*nColours*sizeof(float), NULL, &ret);
     datamobj = clCreateBuffer(context, CL_MEM_READ_WRITE, 3*size_x*size_y*sizeof(unsigned int), NULL, &ret);
 
     /* Create kernel program from source file*/
@@ -126,7 +147,7 @@ void prepare() {
     fprintf(stderr, "%s\n", buffer);
 
     /* Create data parallel OpenCL kernel */
-    kernel = clCreateKernel(program, "rdKernel", &ret);
+    kernel = clCreateKernel(program, "newton3", &ret);
     setKernelArgs();
 }
 
@@ -137,18 +158,21 @@ void cleanup() {
     ret = clReleaseKernel(kernel);
     ret = clReleaseProgram(program);
     
+    ret = clReleaseMemObject(rootmobj);
     ret = clReleaseMemObject(mapmobj);
     ret = clReleaseMemObject(datamobj);
     
     ret = clReleaseCommandQueue(command_queue);
     ret = clReleaseContext(context);
 
+    free(roots);
     free(colourMap);
     
     free(source_str);
 }
 
 void step() {
+    ret = clEnqueueWriteBuffer(command_queue, rootmobj, CL_TRUE, 0, 2*nRoots*sizeof(float), roots, 0, NULL, NULL);
 	ret = clEnqueueNDRangeKernel(command_queue, kernel, 2, NULL, global_item_size, NULL, 0, NULL, NULL);
     ret = clEnqueueReadBuffer(command_queue, datamobj, CL_TRUE, 0, 3*size_x*size_y*sizeof(unsigned int), data, 0, NULL, NULL);
 }
@@ -221,6 +245,7 @@ int main(int argc, char **argv) {
 //     glutIdleFunc(&display);
     glutKeyboardUpFunc(&key_pressed);
     
+//     display();
     glutMainLoop();
 
     return 0;
