@@ -52,7 +52,8 @@ __constant float cols[15] = {
     37,  78,  112
 };
 
-__kernel void newton3(global float *roots, global float *map, int nColours, global unsigned int *data)
+__kernel void newton3(global float *roots, global float *map, int nColours, global unsigned int *data, 
+    float scale, float dx, float dy)
 {
 	const int x = get_global_id(0);
 	const int y = get_global_id(1);
@@ -63,12 +64,9 @@ __kernel void newton3(global float *roots, global float *map, int nColours, glob
 	int index, index2;
 	index = 3 * (W * y + x);
 	
-	float scale = 1.;
 	float scale2 = 1. / H * scale;
-	float dx = 0.5;
-	float dy = 0.5;
 	
-	cfloat z = ((cfloat)(x * scale2 + dx - scale * 0.5 * W / (float)H, y * scale2 + dy - scale * 0.5));
+	cfloat z = ((cfloat)(x * scale2 + dx - scale * 0.5 * W / H, y * scale2 + dy - scale * 0.5));
 	
 	if (cmod(z) < (scale / 200.)) {
 	    data[index] = 0.8 * 4294967295;
@@ -99,7 +97,7 @@ __kernel void newton3(global float *roots, global float *map, int nColours, glob
 	double minDist = 1000;
 	int minLoc = 0;
 	
-	for (i=0; i<2000; i++) {
+	for (i=0; i<20000; i++) {
 	    z = step3(z, z0, z1, z2);
 	    
 	    for (int j=0; j<3; j++) {

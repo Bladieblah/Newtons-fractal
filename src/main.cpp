@@ -58,6 +58,12 @@ size_t local_item_size[2] = {(size_t)size_x, (size_t)size_y};
 float *roots;
 int nRoots = 3;
 
+// Positioning
+float scale = 0.5;
+float scale2;
+float dx = 0.5;
+float dy = 0.5;
+
 // Functions
 
 void makeColourmap() {
@@ -85,6 +91,10 @@ void setKernelArgs() {
     ret = clSetKernelArg(kernel, 1, sizeof(cl_mem), (void *)&mapmobj);
     ret = clSetKernelArg(kernel, 2, sizeof(int), &nColours);
     ret = clSetKernelArg(kernel, 3, sizeof(cl_mem), (void *)&datamobj);
+    
+    ret = clSetKernelArg(kernel, 4, sizeof(float), &scale);
+    ret = clSetKernelArg(kernel, 5, sizeof(float), &dx);
+    ret = clSetKernelArg(kernel, 6, sizeof(float), &dy);
 }
 
 void initData() {
@@ -212,6 +222,14 @@ void display() {
 void key_pressed(unsigned char key, int x, int y) {
     switch (key)
     {
+        case 'w':
+            scale /= 2.;
+            ret = clSetKernelArg(kernel, 4, sizeof(float), &scale);
+            break;
+        case 's':
+            scale *= 2.;
+            ret = clSetKernelArg(kernel, 4, sizeof(float), &scale);
+            break;
         case 'p':
             glutIdleFunc(&display);
             break;
@@ -231,6 +249,25 @@ void key_pressed(unsigned char key, int x, int y) {
     }
 }
 
+// x * scale2 + dx - scale * 0.5 * W / H, 
+// y * scale2 + dy - scale * 0.5
+
+void mouseFunc(int button, int state, int x,int y) {
+    scale2 = 1. / size_y * scale;
+    float xpos = x * scale2 + dx - scale * 0.5 * size_x / size_y;
+    float ypos = (size_y - y) * scale2 + dy - scale * 0.5;
+    
+	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
+	    fprintf(stderr, "%f, %f\n", xpos, ypos);
+		
+		dx = xpos;
+		dy = ypos;
+		
+        ret = clSetKernelArg(kernel, 5, sizeof(float), &dx);
+        ret = clSetKernelArg(kernel, 6, sizeof(float), &dy);
+	}
+}
+
 int main(int argc, char **argv) {
     prepare();
     makeColourmap();
@@ -242,8 +279,9 @@ int main(int argc, char **argv) {
     glutDisplayFunc( display );
     
     glutDisplayFunc(&display);
-//     glutIdleFunc(&display);
+    glutIdleFunc(&display);
     glutKeyboardUpFunc(&key_pressed);
+    glutMouseFunc(mouseFunc);
     
     display();
     glutMainLoop();
