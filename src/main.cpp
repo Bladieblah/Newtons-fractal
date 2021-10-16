@@ -245,7 +245,7 @@ int main(int argc, char **argv) {
 //     glutIdleFunc(&display);
     glutKeyboardUpFunc(&key_pressed);
     
-//     display();
+    display();
     glutMainLoop();
 
     return 0;

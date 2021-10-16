@@ -3,7 +3,7 @@ __constant sampler_t sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_FILTER_NEAREST 
 __constant float laplace_kernel[3][3] = {{0.05, 0.2, 0.05}, {0.2, -1., 0.2}, {0.05, 0.2, 0.05}};
 
 //2 component vector to hold the real and imaginary parts of a complex number:
-typedef float2 cfloat;
+typedef double2 cfloat;
 
 #define I ((cfloat)(0.0, 1.0))
 
@@ -60,7 +60,31 @@ __kernel void newton3(global float *roots, global float *map, int nColours, glob
 	const int W = get_global_size(0);
 	const int H = get_global_size(1);
 	
-	cfloat z = ((cfloat)(x / (float)W, y / (float)H));
+	int index, index2;
+	index = 3 * (W * y + x);
+	
+	float scale = 1.;
+	float scale2 = 1. / H * scale;
+	float dx = 0.5;
+	float dy = 0.5;
+	
+	cfloat z = ((cfloat)(x * scale2 + dx - scale * 0.5 * W / (float)H, y * scale2 + dy - scale * 0.5));
+	
+	if (cmod(z) < (scale / 200.)) {
+	    data[index] = 0.8 * 4294967295;
+	    data[index + 1] = 0;
+	    data[index + 2] = 0;
+	    
+	    return;
+	}
+	
+	if (cmod(z - ((cfloat)(dx, dy))) < (scale / 200.)) {
+	    data[index] = 0;
+	    data[index + 1] = 0.8 * 4294967295;
+	    data[index + 2] = 0;
+	    
+	    return;
+	}
 	
 	cfloat z0 = ((cfloat)(roots[0], roots[1]));
 	cfloat z1 = ((cfloat)(roots[2], roots[3]));
@@ -68,13 +92,14 @@ __kernel void newton3(global float *roots, global float *map, int nColours, glob
 	
 	cfloat croots[3] = {z0, z1, z2};
 	
-	float dist;
-	float thr = 1e-3;
+	int i;
+	double dist;
+	double thr = 1e-10;
 	
-	float minDist = 1000;
+	double minDist = 1000;
 	int minLoc = 0;
 	
-	for (int i=0; i<20; i++) {
+	for (i=0; i<2000; i++) {
 	    z = step3(z, z0, z1, z2);
 	    
 	    for (int j=0; j<3; j++) {
@@ -84,26 +109,18 @@ __kernel void newton3(global float *roots, global float *map, int nColours, glob
 	            minDist = dist;
 	            minLoc = j;
 	        }
-	        
-	        if (dist < thr) {
-	            break;
-	        }
 	    }
+	        
+        if (minDist < thr) {
+            break;
+        }
 	}
 	
-	int index, index2;
-	
-	index = 3 * (W * y + x);
 	index2 = 3 * (int)(minLoc);
+	float corr = 1. / sqrt(log((float)i + 1 + log(thr) / log(minDist)));
+// 	corr = 1;
 	
 	for (int i=0; i<3; i++) {
-	    data[index + i] = cols[index2 + i] / 255. * 4294967295;
+	    data[index + i] = cols[index2 + i] / 255. * 4294967295 * corr;
 	}
-	
-	
-// 	index2 = 3 * (int)(nColours * (x + y) / (float)(H + W));
-// 	
-// 	for (int i=0; i<3; i++) {
-// 	    data[index + i] = map[index2 + i] * 4294967295;
-// 	}
 }
