@@ -299,6 +299,7 @@ int main(int argc, char **argv) {
     glutKeyboardUpFunc(&key_pressed);
     glutMouseFunc(mouseFunc);
     
+    step();
     display();
     glutMainLoop();
 
