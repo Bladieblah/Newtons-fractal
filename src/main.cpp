@@ -21,8 +21,8 @@
 #define MAX_SOURCE_SIZE (0x100000)
 
 // Window size
-#define size_x 1920
-#define size_y 1080
+#define size_x 2560
+#define size_y 1440
 
 // OpenCL initialisation
 cl_platform_id platform_id = NULL;
@@ -56,7 +56,7 @@ size_t local_item_size[2] = {(size_t)size_x, (size_t)size_y};
 
 // Roots
 float *roots;
-int nRoots = 3;
+int nRoots = 4;
 
 // Positioning
 float scale = 0.5;
@@ -75,6 +75,12 @@ void makeColourmap() {
         {200,40,187},
         {241, 249, 244}
     };
+    
+//     std::vector<float> x = {0., 1.};
+//     std::vector< std::vector<float> > y = {
+//         {0,0,0},
+//         {200, 200, 200}
+//     };
 
     Colour col(x, y, nColours);
     
@@ -98,7 +104,7 @@ void setKernelArgs() {
 }
 
 void initData() {
-    float offset[3] = {0.1, 0, -0.1};
+    float offset[4] = {0.1, 0, -0.1, 0.2};
     float theta;
     
     for (int i=0; i<nRoots; i++) {
@@ -157,7 +163,7 @@ void prepare() {
     fprintf(stderr, "%s\n", buffer);
 
     /* Create data parallel OpenCL kernel */
-    kernel = clCreateKernel(program, "newton3", &ret);
+    kernel = clCreateKernel(program, "newton4", &ret);
     setKernelArgs();
 }
 
