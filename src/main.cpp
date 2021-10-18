@@ -21,8 +21,8 @@
 #define MAX_SOURCE_SIZE (0x100000)
 
 // Window size
-#define size_x 2560
-#define size_y 1440
+#define size_x 1920
+#define size_y 1080
 
 // OpenCL initialisation
 cl_platform_id platform_id = NULL;
@@ -101,10 +101,12 @@ void setKernelArgs() {
     ret = clSetKernelArg(kernel, 4, sizeof(float), &scale);
     ret = clSetKernelArg(kernel, 5, sizeof(float), &dx);
     ret = clSetKernelArg(kernel, 6, sizeof(float), &dy);
+    
+    ret = clSetKernelArg(kernel, 7, sizeof(int), &nRoots);
 }
 
 void initData() {
-    float offset[4] = {0.1, 0, -0.1, 0.2};
+    float offset[5] = {0.1, 0, -0.1, 0.2, 0.4};
     float theta;
     
     for (int i=0; i<nRoots; i++) {
@@ -163,7 +165,7 @@ void prepare() {
     fprintf(stderr, "%s\n", buffer);
 
     /* Create data parallel OpenCL kernel */
-    kernel = clCreateKernel(program, "newton4", &ret);
+    kernel = clCreateKernel(program, "newtonn", &ret);
     setKernelArgs();
 }
 
