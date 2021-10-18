@@ -56,10 +56,10 @@ size_t local_item_size[2] = {(size_t)size_x, (size_t)size_y};
 
 // Roots
 float *roots;
-int nRoots = 4;
+int nRoots = 5;
 
 // Positioning
-float scale = 0.5;
+float scale = 1;
 float scale2;
 float dx = 0.5;
 float dy = 0.5;
@@ -191,7 +191,14 @@ void cleanup() {
 
 void step() {
     ret = clEnqueueWriteBuffer(command_queue, rootmobj, CL_TRUE, 0, 2*nRoots*sizeof(float), roots, 0, NULL, NULL);
+    
 	ret = clEnqueueNDRangeKernel(command_queue, kernel, 2, NULL, global_item_size, NULL, 0, NULL, NULL);
+    if (ret != CL_SUCCESS)
+    {
+      printf("Failed on function clDoSomething: %d\n", ret);
+//       exit(1); // Or do whatever cleanup needs to be done before exiting
+    }
+    
     ret = clEnqueueReadBuffer(command_queue, datamobj, CL_TRUE, 0, 3*size_x*size_y*sizeof(unsigned int), data, 0, NULL, NULL);
 }
 
@@ -223,8 +230,6 @@ void display() {
 
     glFlush();
     glutSwapBuffers();
-    
-    step();
 }
 
 void key_pressed(unsigned char key, int x, int y) {
@@ -233,10 +238,12 @@ void key_pressed(unsigned char key, int x, int y) {
         case 'w':
             scale /= 2.;
             ret = clSetKernelArg(kernel, 4, sizeof(float), &scale);
+            step();
             break;
         case 's':
             scale *= 2.;
             ret = clSetKernelArg(kernel, 4, sizeof(float), &scale);
+            step();
             break;
         case 'p':
             glutIdleFunc(&display);
@@ -273,6 +280,7 @@ void mouseFunc(int button, int state, int x,int y) {
 		
         ret = clSetKernelArg(kernel, 5, sizeof(float), &dx);
         ret = clSetKernelArg(kernel, 6, sizeof(float), &dy);
+        step();
 	}
 }
 
