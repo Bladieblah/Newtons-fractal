@@ -229,6 +229,15 @@ void display() {
     glEnd();
 
     glFlush();
+    
+    glPointSize(10);
+    glColor3f(1,1,1);
+    glBegin(GL_POINTS);
+    for (int i=0; i<nRoots; i++) {
+        glVertex2f (roots[2*i], roots[2*i+1]);
+    }
+    glEnd();
+    
     glutSwapBuffers();
 }
 
