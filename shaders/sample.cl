@@ -1,7 +1,5 @@
 __constant sampler_t sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_FILTER_NEAREST | CLK_ADDRESS_CLAMP_TO_EDGE;
 
-__constant float laplace_kernel[3][3] = {{0.05, 0.2, 0.05}, {0.2, -1., 0.2}, {0.05, 0.2, 0.05}};
-
 //2 component vector to hold the real and imaginary parts of a complex number:
 typedef double2 cfloat;
 
@@ -51,21 +49,21 @@ inline cfloat stepn(cfloat x, cfloat *z, int n) {
 }
 
 struct Matrix {
-    float m00, m01, m02;
-    float m10, m11, m12;
-    float m20, m21, m22;
+    double m00, m01, m02;
+    double m10, m11, m12;
+    double m20, m21, m22;
 };
 
 struct Color {
-    float r, g, b;
+    double r, g, b;
 };
 
-inline struct Matrix hueRotation(float theta) {
-    float c = cos(theta);
-    float s = sin(theta);
+inline struct Matrix hueRotation(double theta) {
+    double c = cos(theta);
+    double s = sin(theta);
     
-    float c1 = (1 - c) / 3.;
-    float s1 = sqrt(1./3.) * s;
+    double c1 = (1 - c) / 3.;
+    double s1 = sqrt(1./3.) * s;
     
     struct Matrix mat;
     
@@ -93,7 +91,7 @@ inline struct Color applyMat(struct Matrix mat, struct Color col) {
 }
 
 __kernel void newtonn(global float *roots, global float *map, int nColours, global unsigned int *data, 
-    float scale, float dx, float dy, int nRoots)
+    double scale, double dx, double dy, int nRoots)
 {
 	const int x = get_global_id(0);
 	const int y = get_global_id(1);
@@ -105,7 +103,7 @@ __kernel void newtonn(global float *roots, global float *map, int nColours, glob
 	int index, index2;
 	index = 3 * (W * y + x);
 	
-	float scale2 = 1. / H * scale;
+	double scale2 = 1. / H * scale;
 	
 	cfloat z = ((cfloat)(x * scale2 + dx - scale * 0.5 * W / H, y * scale2 + dy - scale * 0.5));
 	cfloat croots[20];
@@ -116,7 +114,7 @@ __kernel void newtonn(global float *roots, global float *map, int nColours, glob
 	}
 	
 	double dist, prevDist;
-	double thr = 1e-8;
+	double thr = 1e-6;
 	
 	double minDist = 1000;
 	int minLoc = 2;

@@ -21,8 +21,8 @@
 #define MAX_SOURCE_SIZE (0x100000)
 
 // Window size
-#define size_x 1080
-#define size_y 720
+#define size_x 1920
+#define size_y 1080
 
 // OpenCL initialisation
 cl_platform_id platform_id = NULL;
@@ -59,10 +59,10 @@ float *roots;
 int nRoots = 5;
 
 // Positioning
-float scale = 1;
-float scale2;
-float dx = 0.469726;
-float dy = 0.688087;
+double scale = 1;
+double scale2;
+double dx = 0.469726;
+double dy = 0.688087;
 
 int drawRoots = 0;
 
@@ -101,9 +101,9 @@ void setKernelArgs() {
     ret = clSetKernelArg(kernel, 2, sizeof(int), &nColours);
     ret = clSetKernelArg(kernel, 3, sizeof(cl_mem), (void *)&datamobj);
     
-    ret = clSetKernelArg(kernel, 4, sizeof(float), &scale);
-    ret = clSetKernelArg(kernel, 5, sizeof(float), &dx);
-    ret = clSetKernelArg(kernel, 6, sizeof(float), &dy);
+    ret = clSetKernelArg(kernel, 4, sizeof(double), &scale);
+    ret = clSetKernelArg(kernel, 5, sizeof(double), &dx);
+    ret = clSetKernelArg(kernel, 6, sizeof(double), &dy);
     
     ret = clSetKernelArg(kernel, 7, sizeof(int), &nRoots);
 }
@@ -269,14 +269,14 @@ void key_pressed(unsigned char key, int x, int y) {
     {
         case 'w':
             scale /= 2.;
-            ret = clSetKernelArg(kernel, 4, sizeof(float), &scale);
-            fprintf(stderr, "scale = %.12f\n", scale);
+            ret = clSetKernelArg(kernel, 4, sizeof(double), &scale);
+            fprintf(stderr, "scale = %.12g\n", scale);
             step();
             break;
         case 's':
             scale *= 2.;
-            ret = clSetKernelArg(kernel, 4, sizeof(float), &scale);
-            fprintf(stderr, "scale = %.12f\n", scale);
+            ret = clSetKernelArg(kernel, 4, sizeof(double), &scale);
+            fprintf(stderr, "scale = %.12g\n", scale);
             step();
             break;
         case 'p':
@@ -303,17 +303,17 @@ void key_pressed(unsigned char key, int x, int y) {
 
 void mouseFunc(int button, int state, int x,int y) {
     scale2 = 1. / size_y * scale;
-    float xpos = x * scale2 + dx - scale * 0.5 * size_x / size_y;
-    float ypos = (size_y - y) * scale2 + dy - scale * 0.5;
+    double xpos = x * scale2 + dx - scale * 0.5 * size_x / size_y;
+    double ypos = (size_y - y) * scale2 + dy - scale * 0.5;
     
 	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
-	    fprintf(stderr, "(xc, xy) = (%.12f, %.12f)\n", xpos, ypos);
+	    fprintf(stderr, "(xc, xy) = (%.12g, %.12g)\n", xpos, ypos);
 		
 		dx = xpos;
 		dy = ypos;
 		
-        ret = clSetKernelArg(kernel, 5, sizeof(float), &dx);
-        ret = clSetKernelArg(kernel, 6, sizeof(float), &dy);
+        ret = clSetKernelArg(kernel, 5, sizeof(double), &dx);
+        ret = clSetKernelArg(kernel, 6, sizeof(double), &dy);
         step();
 	}
 }
