@@ -21,8 +21,8 @@
 #define MAX_SOURCE_SIZE (0x100000)
 
 // Window size
-#define size_x 1920
-#define size_y 1080
+#define size_x 1080
+#define size_y 720
 
 // OpenCL initialisation
 cl_platform_id platform_id = NULL;
@@ -61,19 +61,22 @@ int nRoots = 5;
 // Positioning
 float scale = 1;
 float scale2;
-float dx = 0.5;
-float dy = 0.5;
+float dx = 0.469726;
+float dy = 0.688087;
+
+int drawRoots = 0;
 
 // Functions
 
 void makeColourmap() {
-    std::vector<float> x = {0., 0.2, 0.4, 0.7, 1.};
+    std::vector<float> x = {0., 0.2, 0.4, 0.6, 0.8, 1.};
     std::vector< std::vector<float> > y = {
         {26,17,36},
         {33,130,133},
         {26,17,36},
         {200,40,187},
-        {241, 249, 244}
+        {241, 249, 244},
+        {26,17,36}
     };
     
 //     std::vector<float> x = {0., 1.};
@@ -106,13 +109,23 @@ void setKernelArgs() {
 }
 
 void initData() {
-    float offset[5] = {0.1, 0, -0.1, 0.2, 0.4};
-    float theta;
+//     float offset[5] = {0.1, 0, -0.1, 0.2, 0.4};
+//     float theta;
+//     
+//     for (int i=0; i<nRoots; i++) {
+//         theta = 2 * M_PI / nRoots * i + offset[i];
+//         roots[2*i] = cos(theta) / 2.3 + 0.5;
+//         roots[2*i + 1] = sin(theta) / 2.2 + 0.5;
+//     }
+
+    float a = 0.5;
+    float b = 0.1;
+    float c = 0.25;
+    float d = 0.1;
     
     for (int i=0; i<nRoots; i++) {
-        theta = 2 * M_PI / nRoots * i + offset[i];
-        roots[2*i] = cos(theta) / 2.3 + 0.5;
-        roots[2*i + 1] = sin(theta) / 2.2 + 0.5;
+        roots[2*i + 0] = c * i + d;
+        roots[2*i + 1] = c * (a * i * i * i + b);
     }
     
     for (int i=0; i<nRoots; i++) {
@@ -196,7 +209,6 @@ void step() {
     if (ret != CL_SUCCESS)
     {
       printf("Failed on function clDoSomething: %d\n", ret);
-//       exit(1); // Or do whatever cleanup needs to be done before exiting
     }
     
     ret = clEnqueueReadBuffer(command_queue, datamobj, CL_TRUE, 0, 3*size_x*size_y*sizeof(unsigned int), data, 0, NULL, NULL);
@@ -227,16 +239,27 @@ void display() {
         glTexCoord2f(1.0f, 1.0f); glVertex2f( 1.0,  1.0);
         glTexCoord2f(0.0f, 1.0f); glVertex2f(-1.0,  1.0);
     glEnd();
+    
+    glDisable (GL_TEXTURE_2D);
 
     glFlush();
     
-    glPointSize(10);
-    glColor3f(1,1,1);
-    glBegin(GL_POINTS);
-    for (int i=0; i<nRoots; i++) {
-        glVertex2f (roots[2*i], roots[2*i+1]);
+    // Draw points at roots
+    if (drawRoots) {
+        glPointSize(10);
+        glColor4f(1.,1.,1.,1.);
+        glEnable(GL_POINT_SMOOTH);
+    
+        glBegin(GL_POINTS);
+        float x, y;
+        for (int i=0; i<nRoots; i++) {
+            x = 2 * (roots[2*i] - dx) / scale * size_y / (float)size_x;
+            y = 2 * (roots[2*i+1] - dy) / scale;
+            glVertex2f (x, y);
+        }
+    
+        glEnd();
     }
-    glEnd();
     
     glutSwapBuffers();
 }
@@ -247,11 +270,13 @@ void key_pressed(unsigned char key, int x, int y) {
         case 'w':
             scale /= 2.;
             ret = clSetKernelArg(kernel, 4, sizeof(float), &scale);
+            fprintf(stderr, "scale = %.12f\n", scale);
             step();
             break;
         case 's':
             scale *= 2.;
             ret = clSetKernelArg(kernel, 4, sizeof(float), &scale);
+            fprintf(stderr, "scale = %.12f\n", scale);
             step();
             break;
         case 'p':
@@ -263,6 +288,9 @@ void key_pressed(unsigned char key, int x, int y) {
         case 'r':
             initData();
             break;
+        case 'm':
+            drawRoots = 1 - drawRoots;
+            break;
         case 'q':
         	cleanup();
         	fprintf(stderr, "\n");
@@ -273,16 +301,13 @@ void key_pressed(unsigned char key, int x, int y) {
     }
 }
 
-// x * scale2 + dx - scale * 0.5 * W / H, 
-// y * scale2 + dy - scale * 0.5
-
 void mouseFunc(int button, int state, int x,int y) {
     scale2 = 1. / size_y * scale;
     float xpos = x * scale2 + dx - scale * 0.5 * size_x / size_y;
     float ypos = (size_y - y) * scale2 + dy - scale * 0.5;
     
 	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
-	    fprintf(stderr, "%f, %f\n", xpos, ypos);
+	    fprintf(stderr, "(xc, xy) = (%.12f, %.12f)\n", xpos, ypos);
 		
 		dx = xpos;
 		dy = ypos;
