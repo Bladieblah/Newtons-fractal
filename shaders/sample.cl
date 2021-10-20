@@ -45,7 +45,8 @@ inline cfloat derivn(cfloat x, cfloat *z, int n) {
 }
 
 inline cfloat stepn(cfloat x, cfloat *z, int n) {
-    return x - cdiv(funcn(x, z, n), derivn(x, z, n));
+    double stepsize = 0.6;
+    return x - ((cfloat)(stepsize, stepsize)) * cdiv(funcn(x, z, n), derivn(x, z, n));
 }
 
 struct Matrix {
@@ -120,7 +121,7 @@ __kernel void newtonn(global float *roots, global float *map, int nColours, glob
 	int minLoc = 2;
 	
 	for (i=0; i<2000; i++) {
-	    z = stepn(z, croots, nRoots);
+        z = stepn(z, croots, nRoots);
 	    
 	    for (int j=0; j<nRoots; j++) {
 	        dist = cmod(z - croots[j]);

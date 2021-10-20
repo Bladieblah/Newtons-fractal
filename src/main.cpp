@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <limits.h>
 #include <time.h>
+#include <ctime>
 #include <math.h>
 #include <vector>
 
@@ -57,6 +58,7 @@ size_t local_item_size[2] = {(size_t)size_x, (size_t)size_y};
 // Roots
 float *roots;
 int nRoots = 5;
+int rootIndex;
 
 // Positioning
 double scale = 1;
@@ -65,6 +67,9 @@ double dx = 0.469726;
 double dy = 0.688087;
 
 int drawRoots = 0;
+
+// Mouse
+int mouse_x, mouse_y;
 
 // Functions
 
@@ -109,24 +114,24 @@ void setKernelArgs() {
 }
 
 void initData() {
-//     float offset[5] = {0.1, 0, -0.1, 0.2, 0.4};
-//     float theta;
-//     
-//     for (int i=0; i<nRoots; i++) {
-//         theta = 2 * M_PI / nRoots * i + offset[i];
-//         roots[2*i] = cos(theta) / 2.3 + 0.5;
-//         roots[2*i + 1] = sin(theta) / 2.2 + 0.5;
-//     }
-
-    float a = 0.5;
-    float b = 0.1;
-    float c = 0.25;
-    float d = 0.1;
+    float offset[10] = {0.1, 0, -0.1, 0.2, 0.4, 0, 0.1, 0.2, -0.1, 0.3};
+    float theta;
     
     for (int i=0; i<nRoots; i++) {
-        roots[2*i + 0] = c * i + d;
-        roots[2*i + 1] = c * (a * i * i * i + b);
+        theta = 2 * M_PI / nRoots * i + offset[i];
+        roots[2*i] = cos(theta) / 2.3 + 0.5;
+        roots[2*i + 1] = sin(theta) / 2.2 + 0.5;
     }
+
+//     float a = 0.5;
+//     float b = 0.1;
+//     float c = 0.25;
+//     float d = 0.1;
+//     
+//     for (int i=0; i<nRoots; i++) {
+//         roots[2*i + 0] = c * i + d;
+//         roots[2*i + 1] = c * (a * i * i * i + b);
+//     }
     
     for (int i=0; i<nRoots; i++) {
         fprintf(stderr, "(%.2f, %.2f)\n", roots[2*i], roots[2*i+1]);
@@ -203,6 +208,10 @@ void cleanup() {
 }
 
 void step() {
+    std::clock_t    start;
+
+    start = std::clock();
+
     ret = clEnqueueWriteBuffer(command_queue, rootmobj, CL_TRUE, 0, 2*nRoots*sizeof(float), roots, 0, NULL, NULL);
     
 	ret = clEnqueueNDRangeKernel(command_queue, kernel, 2, NULL, global_item_size, NULL, 0, NULL, NULL);
@@ -212,9 +221,26 @@ void step() {
     }
     
     ret = clEnqueueReadBuffer(command_queue, datamobj, CL_TRUE, 0, 3*size_x*size_y*sizeof(unsigned int), data, 0, NULL, NULL);
+    
+//     fprintf(stderr, "step time = %.3g\n", (std::clock() - start) / (double)(CLOCKS_PER_SEC / 1000));
+}
+
+void setRoot(int x, int y) {
+    scale2 = 1. / size_y * scale;
+    double xpos = x * scale2 + dx - scale * 0.5 * size_x / size_y;
+    double ypos = (size_y - y) * scale2 + dy - scale * 0.5;
+    
+    if (rootIndex != -1) {
+        roots[2*rootIndex] = xpos;
+        roots[2*rootIndex + 1] = ypos;
+        
+        step();
+    }
 }
 
 void display() {
+    setRoot(mouse_x, mouse_y);
+    
     glClearColor( 0, 0, 0, 1 );
     glClear( GL_COLOR_BUFFER_BIT );
 
@@ -307,15 +333,34 @@ void mouseFunc(int button, int state, int x,int y) {
     double ypos = (size_y - y) * scale2 + dy - scale * 0.5;
     
 	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
-	    fprintf(stderr, "(xc, xy) = (%.12g, %.12g)\n", xpos, ypos);
-		
-		dx = xpos;
-		dy = ypos;
-		
-        ret = clSetKernelArg(kernel, 5, sizeof(double), &dx);
-        ret = clSetKernelArg(kernel, 6, sizeof(double), &dy);
+	    rootIndex = -1;
+	    float dist;
+	    
+	    for (int i=0; i<nRoots; i++) {
+	        dist = sqrt(pow(xpos - roots[2*i], 2) + pow(ypos - roots[2*i+1], 2));
+	        if (dist / scale * size_y < 20) {
+	            rootIndex = i;
+	            break;
+	        }
+	    }
+	    
+	    if (rootIndex == -1) {
+            fprintf(stderr, "(xc, xy) = (%.12g, %.12g)\n", xpos, ypos);
+        
+            dx = xpos;
+            dy = ypos;
+        
+            ret = clSetKernelArg(kernel, 5, sizeof(double), &dx);
+            ret = clSetKernelArg(kernel, 6, sizeof(double), &dy);
+        }
+        
         step();
 	}
+}
+
+void motionFunc(int x, int y) {
+    mouse_x = x;
+    mouse_y = y;
 }
 
 int main(int argc, char **argv) {
@@ -332,6 +377,10 @@ int main(int argc, char **argv) {
     glutIdleFunc(&display);
     glutKeyboardUpFunc(&key_pressed);
     glutMouseFunc(mouseFunc);
+    glutMotionFunc(&motionFunc);
+    
+    mouse_x = 0; mouse_y = 0;
+    rootIndex = -1;
     
     step();
     display();
