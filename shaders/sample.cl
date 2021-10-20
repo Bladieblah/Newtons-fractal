@@ -45,7 +45,7 @@ inline cfloat derivn(cfloat x, cfloat *z, int n) {
 }
 
 inline cfloat stepn(cfloat x, cfloat *z, int n) {
-    double stepsize = 0.6;
+    double stepsize = 0.9;
     return x - ((cfloat)(stepsize, stepsize)) * cdiv(funcn(x, z, n), derivn(x, z, n));
 }
 
@@ -146,7 +146,7 @@ __kernel void newtonn(global float *roots, global float *map, int nColours, glob
 	col.g = map[index2 + 1];
 	col.b = map[index2 + 2];
 	
-	float theta = 0.2 * M_PI * minLoc + 0.3;
+	float theta = 0.1 * M_PI * minLoc + 0.;
 	struct Matrix mat = hueRotation(theta);
 	col = applyMat(mat, col);
 	

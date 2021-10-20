@@ -49,7 +49,7 @@ unsigned int data[size_y*size_x*3];
 
 // Colourmap stuff
 float *colourMap;
-int nColours = 255;
+int nColours = 384;
 
 // Kernel size for parallelisation
 size_t global_item_size[2] = {(size_t)size_x, (size_t)size_y};
@@ -57,14 +57,14 @@ size_t local_item_size[2] = {(size_t)size_x, (size_t)size_y};
 
 // Roots
 float *roots;
-int nRoots = 5;
+int nRoots = 4;
 int rootIndex;
 
 // Positioning
-double scale = 1;
+double scale = 2;
 double scale2;
-double dx = 0.469726;
-double dy = 0.688087;
+double dx = 0.;
+double dy = 0.;
 
 int drawRoots = 0;
 
@@ -74,21 +74,23 @@ int mouse_x, mouse_y;
 // Functions
 
 void makeColourmap() {
-    std::vector<float> x = {0., 0.2, 0.4, 0.6, 0.8, 1.};
-    std::vector< std::vector<float> > y = {
-        {26,17,36},
-        {33,130,133},
-        {26,17,36},
-        {200,40,187},
-        {241, 249, 244},
-        {26,17,36}
-    };
-    
-//     std::vector<float> x = {0., 1.};
+//     std::vector<float> x = {0., 0.2, 0.4, 0.6, 0.8, 1.};
 //     std::vector< std::vector<float> > y = {
-//         {0,0,0},
-//         {200, 200, 200}
+//         {26,17,36},
+//         {33,130,133},
+//         {26,17,36},
+//         {200,40,187},
+//         {241, 249, 244},
+//         {26,17,36}
 //     };
+    
+    std::vector<float> x = {0., 0.3333333, 0.6666666, 1.};
+    std::vector< std::vector<float> > y = {
+        {0, 0, 64},
+        {0, 255, 192},
+        {64, 192, 0},
+        {0, 0, 64}
+    };
 
     Colour col(x, y, nColours);
     
@@ -118,9 +120,9 @@ void initData() {
     float theta;
     
     for (int i=0; i<nRoots; i++) {
-        theta = 2 * M_PI / nRoots * i + offset[i];
-        roots[2*i] = cos(theta) / 2.3 + 0.5;
-        roots[2*i + 1] = sin(theta) / 2.2 + 0.5;
+        theta = 2 * M_PI / nRoots * i;// + offset[i];
+        roots[2*i] = cos(theta) / 2.;
+        roots[2*i + 1] = sin(theta) / 2.;
     }
 
 //     float a = 0.5;
@@ -136,6 +138,8 @@ void initData() {
     for (int i=0; i<nRoots; i++) {
         fprintf(stderr, "(%.2f, %.2f)\n", roots[2*i], roots[2*i+1]);
     }
+    
+    scale = 2; dx = 0; dy = 0;
 }
 
 void prepare() {
@@ -313,6 +317,7 @@ void key_pressed(unsigned char key, int x, int y) {
             break;
         case 'r':
             initData();
+            step();
             break;
         case 'm':
             drawRoots = 1 - drawRoots;
