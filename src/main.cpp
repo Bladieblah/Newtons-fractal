@@ -3,6 +3,7 @@
 #include <limits.h>
 #include <time.h>
 #include <ctime>
+#include <chrono>
 #include <math.h>
 #include <vector>
 
@@ -84,12 +85,18 @@ void makeColourmap() {
 //         {26,17,36}
 //     };
     
-    std::vector<float> x = {0., 0.3333333, 0.6666666, 1.};
+//     std::vector<float> x = {0., 0.3333333, 0.6666666, 1.};
+//     std::vector< std::vector<float> > y = {
+//         {0, 0, 64},
+//         {0, 255, 192},
+//         {64, 192, 0},
+//         {0, 0, 64}
+//     };
+
+    std::vector<float> x = {0., 1.};
     std::vector< std::vector<float> > y = {
-        {0, 0, 64},
-        {0, 255, 192},
-        {64, 192, 0},
-        {0, 0, 64}
+        {0, 0, 0},
+        {255,255,255}
     };
 
     Colour col(x, y, nColours);
@@ -187,7 +194,7 @@ void prepare() {
     fprintf(stderr, "%s\n", buffer);
 
     /* Create data parallel OpenCL kernel */
-    kernel = clCreateKernel(program, "newtonn", &ret);
+    kernel = clCreateKernel(program, "newtonns", &ret);
     setKernelArgs();
 }
 
@@ -212,21 +219,20 @@ void cleanup() {
 }
 
 void step() {
-    std::clock_t    start;
-
-    start = std::clock();
+    std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
 
     ret = clEnqueueWriteBuffer(command_queue, rootmobj, CL_TRUE, 0, 2*nRoots*sizeof(float), roots, 0, NULL, NULL);
     
 	ret = clEnqueueNDRangeKernel(command_queue, kernel, 2, NULL, global_item_size, NULL, 0, NULL, NULL);
-    if (ret != CL_SUCCESS)
-    {
+    if (ret != CL_SUCCESS) {
       printf("Failed on function clDoSomething: %d\n", ret);
     }
     
     ret = clEnqueueReadBuffer(command_queue, datamobj, CL_TRUE, 0, 3*size_x*size_y*sizeof(unsigned int), data, 0, NULL, NULL);
     
-//     fprintf(stderr, "step time = %.3g\n", (std::clock() - start) / (double)(CLOCKS_PER_SEC / 1000));
+    std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
+    fprintf(stderr, "step time = %.3g\n", time_span.count());
 }
 
 void setRoot(int x, int y) {
@@ -300,17 +306,16 @@ void key_pressed(unsigned char key, int x, int y) {
         case 'w':
             scale /= 2.;
             ret = clSetKernelArg(kernel, 4, sizeof(double), &scale);
-            fprintf(stderr, "scale = %.12g\n", scale);
             step();
             break;
         case 's':
             scale *= 2.;
             ret = clSetKernelArg(kernel, 4, sizeof(double), &scale);
-            fprintf(stderr, "scale = %.12g\n", scale);
             step();
             break;
         case 'p':
-            glutIdleFunc(&display);
+//             glutIdleFunc(&display);
+            fprintf(stderr, "(xc, xy) = (%.12g, %.12g), scale = %.12g\n", dx, dy, scale);
             break;
         case 'e':
             glutPostRedisplay();
@@ -337,8 +342,9 @@ void mouseFunc(int button, int state, int x,int y) {
     double xpos = x * scale2 + dx - scale * 0.5 * size_x / size_y;
     double ypos = (size_y - y) * scale2 + dy - scale * 0.5;
     
+    rootIndex = -1;
+    
 	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
-	    rootIndex = -1;
 	    float dist;
 	    
 	    for (int i=0; i<nRoots; i++) {
@@ -350,7 +356,6 @@ void mouseFunc(int button, int state, int x,int y) {
 	    }
 	    
 	    if (rootIndex == -1) {
-            fprintf(stderr, "(xc, xy) = (%.12g, %.12g)\n", xpos, ypos);
         
             dx = xpos;
             dy = ypos;
