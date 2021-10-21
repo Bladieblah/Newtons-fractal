@@ -44,9 +44,32 @@ inline cfloat derivn(cfloat x, cfloat *z, int n) {
     return result;
 }
 
+inline cfloat deriv2n(cfloat x, cfloat *z, int n) {
+    cfloat result = ((cfloat)(0,0));
+    
+    for (int i=0; i<n; i++) {
+        for (int j=i+1; j<n; j++) {
+            cfloat _result = x - z[i];
+            for (int k=0; k<n; k++) {
+                if (k != i && k != j) {
+                    _result = m2(_result, x - z[j % n]);
+                }
+            }
+            result = result + _result;
+        }
+    }
+    
+    return ((cfloat)(2, 2)) * result;
+}
+
 inline cfloat stepn(cfloat x, cfloat *z, int n) {
-    double stepsize = 0.9;
-    return x - ((cfloat)(stepsize, stepsize)) * cdiv(funcn(x, z, n), derivn(x, z, n));
+//     double stepsize = 0.9;
+//     return x - ((cfloat)(stepsize, stepsize)) * cdiv(funcn(x, z, n), derivn(x, z, n));
+    return x - cdiv(funcn(x, z, n), derivn(x, z, n));
+}
+
+inline cfloat step2(cfloat x, cfloat num, cfloat denom) {
+    return x - cdiv(num, denom);
 }
 
 struct Matrix {
@@ -91,14 +114,16 @@ inline struct Color applyMat(struct Matrix mat, struct Color col) {
     return newCol;
 }
 
-__kernel void newtonn(global float *roots, global float *map, int nColours, global unsigned int *data, 
-    double scale, double dx, double dy, int nRoots)
+__kernel void newtonn(global float *roots, global float *map, int nColours, global int *data, 
+    double scale, double dx, double dy, int _nRoots)
 {
 	const int x = get_global_id(0);
 	const int y = get_global_id(1);
 	
 	const int W = get_global_size(0);
 	const int H = get_global_size(1);
+	
+	int nRoots = (int)_nRoots;
 	
 	int i;
 	int index, index2;
@@ -107,6 +132,7 @@ __kernel void newtonn(global float *roots, global float *map, int nColours, glob
 	double scale2 = 1. / H * scale;
 	
 	cfloat z = ((cfloat)(x * scale2 + dx - scale * 0.5 * W / H, y * scale2 + dy - scale * 0.5));
+	cfloat zprev;
 	cfloat croots[20];
 	
 	for (i=0; i<nRoots; i++) {
@@ -118,9 +144,10 @@ __kernel void newtonn(global float *roots, global float *map, int nColours, glob
 	double thr = 1e-6;
 	
 	double minDist = 1000;
-	int minLoc = 2;
+	int minLoc = 0;
 	
 	for (i=0; i<2000; i++) {
+        zprev = z;
         z = stepn(z, croots, nRoots);
 	    
 	    for (int j=0; j<nRoots; j++) {
