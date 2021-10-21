@@ -58,7 +58,7 @@ size_t local_item_size[2] = {(size_t)size_x, (size_t)size_y};
 
 // Roots
 float *roots;
-int nRoots = 4;
+int nRoots = 3;
 int rootIndex;
 
 // Positioning
@@ -96,6 +96,7 @@ void makeColourmap() {
     std::vector<float> x = {0., 1.};
     std::vector< std::vector<float> > y = {
         {0, 0, 0},
+//         {255,255,255},
         {255,255,255}
     };
 
@@ -123,14 +124,14 @@ void setKernelArgs() {
 }
 
 void initData() {
-    float offset[10] = {0.1, 0, -0.1, 0.2, 0.4, 0, 0.1, 0.2, -0.1, 0.3};
-    float theta;
-    
-    for (int i=0; i<nRoots; i++) {
-        theta = 2 * M_PI / nRoots * i;// + offset[i];
-        roots[2*i] = cos(theta) / 2.;
-        roots[2*i + 1] = sin(theta) / 2.;
-    }
+//     float offset[10] = {0.1, 0, -0.1, 0.2, 0.4, 0, 0.1, 0.2, -0.1, 0.3};
+//     float theta;
+//     
+//     for (int i=0; i<nRoots; i++) {
+//         theta = 2 * M_PI / nRoots * i;// + offset[i];
+//         roots[2*i] = cos(theta) / 2.;
+//         roots[2*i + 1] = sin(theta) / 2.;
+//     }
 
 //     float a = 0.5;
 //     float b = 0.1;
@@ -141,6 +142,10 @@ void initData() {
 //         roots[2*i + 0] = c * i + d;
 //         roots[2*i + 1] = c * (a * i * i * i + b);
 //     }
+
+    roots[0] = 1; roots[1] = 0;
+    roots[2] = 0; roots[3] = 1;
+    roots[4] = -1; roots[5] = 0;
     
     for (int i=0; i<nRoots; i++) {
         fprintf(stderr, "(%.2f, %.2f)\n", roots[2*i], roots[2*i+1]);

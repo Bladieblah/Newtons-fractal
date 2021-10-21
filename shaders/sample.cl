@@ -44,26 +44,50 @@ inline cfloat derivn(cfloat x, cfloat *z, char n) {
     return result;
 }
 
+// inline cfloat deriv2n(cfloat x, cfloat *z, char n) {
+//     cfloat result = ((cfloat)(0,0));
+//     
+//     char kstart = 2;
+//     
+//     for (char i=0; i<n; i++) {
+//         for (char j=i+1; j<n; j++) {
+//             cfloat _result = x - z[kstart];
+//             for (char k=kstart+1; k<n; k++) {
+//                 if (k != i && k != j) {
+//                     _result = m2(_result, x - z[j % n]);
+//                 }
+//             }
+//             result = result + _result;
+//             kstart = 1;
+//         }
+//         kstart = 0;
+//     }
+//     
+//     return ((cfloat)(2, 2)) * result;
+// }
+
 inline cfloat deriv2n(cfloat x, cfloat *z, char n) {
     cfloat result = ((cfloat)(0,0));
     
-    char kstart = 2;
-    
     for (char i=0; i<n; i++) {
-        for (char j=i+1; j<n; j++) {
-            cfloat _result = x - z[kstart];
-            for (char k=kstart+1; k<n; k++) {
+        for (char j=0; j<n; j++) {
+            if (j == i) {
+                continue;
+            }
+            
+            cfloat _result = ((cfloat)(1,0));
+            
+            for (char k=0; k<n; k++) {
                 if (k != i && k != j) {
-                    _result = m2(_result, x - z[j % n]);
+                    _result = m2(_result, x - z[j]);
                 }
             }
+            
             result = result + _result;
-            kstart = 1;
         }
-        kstart = 0;
     }
     
-    return ((cfloat)(2, 2)) * result;
+    return result;
 }
 
 inline cfloat stepn(cfloat x, cfloat *z, char n) {
@@ -126,12 +150,21 @@ inline struct Color applyShade(struct Color col, cfloat z, cfloat dz, cfloat v, 
     u.x = u.x / norm;
     u.y = u.y / norm;
     
-    double scale = 0.3;
-    double highlight = scale + (1. - scale) * (1. - u.x * v.x - u.y * v.y) / (1. + h);
+//     double scale = 0.;
+//     double highlight = scale + (1. - scale) * (1. - (1. - u.x * v.x - u.y * v.y) / (1. + h));
+    double highlight = (u.x * v.x + u.y * v.y + h) / (1. + h);
     
-    newCol.r = 1. - (1. - col.r) * highlight;
-    newCol.g = 1. - (1. - col.g) * highlight;
-    newCol.b = 1. - (1. - col.b) * highlight;
+//     newCol.r = 1. - (1. - col.r) * highlight;
+//     newCol.g = 1. - (1. - col.g) * highlight;
+//     newCol.b = 1. - (1. - col.b) * highlight;
+    
+//     newCol.r = col.r * highlight;
+//     newCol.g = col.g * highlight;
+//     newCol.b = col.b * highlight;
+    
+    newCol.r = highlight;
+    newCol.g = highlight;
+    newCol.b = highlight;
     
     return newCol;
 }
@@ -220,12 +253,10 @@ __kernel void newtonns(global float *roots, global float *map, int nColours, glo
 	double scale2 = 1. / H * scale;
 	
 	cfloat z = ((cfloat)(x * scale2 + dx - scale * 0.5 * W / H, y * scale2 + dy - scale * 0.5));
-	cfloat dz = ((cfloat)(1, 1));
-	cfloat zprev;
-	cfloat dzprev;
+	cfloat dz = ((cfloat)(1, 0));
 	cfloat croots[20];
 	
-	double theta = 2. * M_PI / 3.;
+	double theta = 0. * M_PI / 4.;
 	cfloat v = ((cfloat)(cos(theta), sin(theta)));
 	double h = 1;
 	
@@ -242,16 +273,13 @@ __kernel void newtonns(global float *roots, global float *map, int nColours, glo
 	double minDist = 1000;
 	int minLoc = 2;
 	
-	for (i=0; i<2000; i++) {
-        zprev = z;
-        dzprev = dz;
-        
+	for (i=0; i<2; i++) {
         f0 = funcn(z, croots, nRoots);
         f1 = derivn(z, croots, nRoots);
         f2 = deriv2n(z, croots, nRoots);
         
-        dz = step2(dz, f1, f2);
         z = step2(z, f0, f1);
+        dz = m2(dz, cdiv(m2(f0, f2), m2(f1, f1)));
 	    
 	    for (int j=0; j<nRoots; j++) {
 	        dist = cmod(z - croots[j]);
@@ -268,7 +296,9 @@ __kernel void newtonns(global float *roots, global float *map, int nColours, glo
         }
 	}
 	
-	index2 = 3 * ((int)(10. * (i - 2. * (log(thr) - log(minDist)) / (log(prevDist) - log(minDist)))) % nColours);
+	index2 = 3 * (nColours - 1);
+// 	index2 = 3 * ((int)(10. * (i - 0. * (log(thr) - log(minDist)) / (log(prevDist) - log(minDist)))) % nColours);
+// 	index2 = 3 * (int)(minLoc / (double)(nRoots) * nColours);
 	
 	struct Color col;
 	
