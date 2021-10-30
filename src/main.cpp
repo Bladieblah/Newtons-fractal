@@ -75,15 +75,15 @@ int mouse_x, mouse_y;
 // Functions
 
 void makeColourmap() {
-//     std::vector<float> x = {0., 0.2, 0.4, 0.6, 0.8, 1.};
-//     std::vector< std::vector<float> > y = {
-//         {26,17,36},
-//         {33,130,133},
-//         {26,17,36},
-//         {200,40,187},
-//         {241, 249, 244},
-//         {26,17,36}
-//     };
+    std::vector<float> x = {0., 0.2, 0.4, 0.6, 0.8, 1.};
+    std::vector< std::vector<float> > y = {
+        {26,17,36},
+        {33,130,133},
+        {26,17,36},
+        {200,40,187},
+        {241, 249, 244},
+        {26,17,36}
+    };
     
 //     std::vector<float> x = {0., 0.3333333, 0.6666666, 1.};
 //     std::vector< std::vector<float> > y = {
@@ -93,12 +93,12 @@ void makeColourmap() {
 //         {0, 0, 64}
 //     };
 
-    std::vector<float> x = {0., 1.};
-    std::vector< std::vector<float> > y = {
-        {0, 0, 0},
-//         {255,255,255},
-        {255,255,255}
-    };
+//     std::vector<float> x = {0., 1.};
+//     std::vector< std::vector<float> > y = {
+//         {0, 0, 0},
+// //         {255,255,255},
+//         {255,255,255}
+//     };
 
     Colour col(x, y, nColours);
     
@@ -175,10 +175,12 @@ void prepare() {
     
     /* Get Platform/Device Information */
     ret = clGetPlatformIDs(1, &platform_id, &ret_num_platforms);
-    ret = clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_GPU, 1, &device_id, &ret_num_devices);
+    ret = clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_CPU, 1, &device_id, &ret_num_devices);
 
     /* Create OpenCL Context */
     context = clCreateContext(NULL, 1, &device_id, NULL, NULL, &ret);
+    if (ret != CL_SUCCESS)
+      fprintf(stderr, "Failed on function clCreateContext: %d\n", ret);
 
     /* Create command queue */
     command_queue = clCreateCommandQueue(context, device_id, 0, &ret);
