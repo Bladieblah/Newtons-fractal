@@ -92,8 +92,12 @@ inline cfloat deriv2n(cfloat x, cfloat *z, char n) {
 
 inline cfloat stepn(cfloat x, cfloat *z, char n) {
 //     double stepsize = 0.9;
-//     return x - ((cfloat)(stepsize, stepsize)) * cdiv(funcn(x, z, n), derivn(x, z, n));
+//     return x - cdiv(funcn(x, z, n), derivn(x, z, n));
     return x - cdiv(funcn(x, z, n), derivn(x, z, n));
+}
+
+inline cfloat mandelStep(cfloat z, cfloat c) {
+    return m2(z, z) + c;
 }
 
 inline cfloat step2(cfloat x, cfloat num, cfloat denom) {
@@ -229,6 +233,62 @@ __kernel void newtonn(global float *roots, global float *map, int nColours, glob
 	float theta = 0.1 * M_PI * minLoc + 0.;
 	struct Matrix mat = hueRotation(theta);
 	col = applyMat(mat, col);
+	
+	data[index + 0] = col.r * 4294967295;
+	data[index + 1] = col.g * 4294967295;
+	data[index + 2] = col.b * 4294967295;
+}
+
+__kernel void mandel(global float *roots, global float *map, int nColours, global unsigned int *data, 
+    double scale, double dx, double dy, int _nRoots)
+{
+	const int x = get_global_id(0);
+	const int y = get_global_id(1);
+	
+	const int W = get_global_size(0);
+	const int H = get_global_size(1);
+	
+	int i;
+	int index, index2;
+	index = 3 * (W * y + x);
+	
+	double scale2 = 1. / H * scale;
+	
+	cfloat c = ((cfloat)(x * scale2 + dx - scale * 0.5 * W / H, y * scale2 + dy - scale * 0.5));
+	cfloat z = ((cfloat)(0, 0));
+	cfloat one = ((cfloat)(1, 0));
+	cfloat two = ((cfloat)(2, 2));
+	
+	cfloat dz = one;
+	
+	double dist = 0.;
+	double thr = 100;
+	
+	if (cmod(c) < 0.5) {	
+        data[index + 0] = 0;
+        data[index + 1] = 0;
+        data[index + 2] = 0;
+        
+	    return;
+	}
+	
+	for (i=0; i<20000; i++) {
+	    dz = two * m2(z, dz) + one;
+        z = m2(z, z) + c;
+        dist = cmod(z);
+        
+        if (dist > thr) {
+            break;
+        }
+	}
+	
+	index2 = 3 * ((int)(fabs((i + 1 - log(log(sqrt(dist)))/log(thr)))) % nColours);
+	
+	struct Color col;
+	
+	col.r = map[index2 + 0];
+	col.g = map[index2 + 1];
+	col.b = map[index2 + 2];
 	
 	data[index + 0] = col.r * 4294967295;
 	data[index + 1] = col.g * 4294967295;

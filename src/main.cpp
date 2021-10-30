@@ -6,6 +6,7 @@
 #include <chrono>
 #include <math.h>
 #include <vector>
+#include <complex.h>
 
 #ifdef __APPLE__
 #include <OpenCL/opencl.h>
@@ -175,7 +176,7 @@ void prepare() {
     
     /* Get Platform/Device Information */
     ret = clGetPlatformIDs(1, &platform_id, &ret_num_platforms);
-    ret = clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_CPU, 1, &device_id, &ret_num_devices);
+    ret = clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_GPU, 1, &device_id, &ret_num_devices);
 
     /* Create OpenCL Context */
     context = clCreateContext(NULL, 1, &device_id, NULL, NULL, &ret);
@@ -206,7 +207,8 @@ void prepare() {
     fprintf(stderr, "%s\n", buffer);
 
     /* Create data parallel OpenCL kernel */
-    kernel = clCreateKernel(program, "newtonn", &ret);
+//     kernel = clCreateKernel(program, "newtonn", &ret);
+    kernel = clCreateKernel(program, "mandel", &ret);
     if (ret != CL_SUCCESS)
       fprintf(stderr, "Failed on function clCreateKernel: %d\n", ret);
     setKernelArgs();
