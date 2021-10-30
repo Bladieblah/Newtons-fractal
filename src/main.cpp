@@ -190,7 +190,12 @@ void prepare() {
 
     /* Create kernel program from source file*/
     program = clCreateProgramWithSource(context, 1, (const char **)&source_str, (const size_t *)&source_size, &ret);
+    if (ret != CL_SUCCESS)
+      fprintf(stderr, "Failed on function clCreateProgramWithSource: %d\n", ret);
+    
     ret = clBuildProgram(program, 1, &device_id, NULL, NULL, NULL);
+    if (ret != CL_SUCCESS)
+      fprintf(stderr, "Failed on function clBuildProgram: %d\n", ret);
     
     size_t len = 10000;
     ret = clGetProgramBuildInfo(program, device_id, CL_PROGRAM_BUILD_LOG, 0, NULL, &len);
@@ -199,7 +204,9 @@ void prepare() {
     fprintf(stderr, "%s\n", buffer);
 
     /* Create data parallel OpenCL kernel */
-    kernel = clCreateKernel(program, "newtonns", &ret);
+    kernel = clCreateKernel(program, "newtonn", &ret);
+    if (ret != CL_SUCCESS)
+      fprintf(stderr, "Failed on function clCreateKernel: %d\n", ret);
     setKernelArgs();
 }
 
@@ -230,7 +237,7 @@ void step() {
     
 	ret = clEnqueueNDRangeKernel(command_queue, kernel, 2, NULL, global_item_size, NULL, 0, NULL, NULL);
     if (ret != CL_SUCCESS) {
-      printf("Failed on function clDoSomething: %d\n", ret);
+      fprintf(stderr, "Failed on function clEnqueueNDRangeKernel: %d\n", ret);
     }
     
     ret = clEnqueueReadBuffer(command_queue, datamobj, CL_TRUE, 0, 3*size_x*size_y*sizeof(unsigned int), data, 0, NULL, NULL);
