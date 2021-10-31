@@ -7,6 +7,7 @@
 #include <math.h>
 #include <vector>
 #include <complex.h>
+#include <string>
 
 #ifdef __APPLE__
 #include <OpenCL/opencl.h>
@@ -51,7 +52,7 @@ unsigned int data[size_y*size_x*3];
 
 // Colourmap stuff
 float *colourMap;
-int nColours = 384;
+int nColours = 3840;
 
 // Kernel size for parallelisation
 size_t global_item_size[2] = {(size_t)size_x, (size_t)size_y};
@@ -69,6 +70,9 @@ double dx = 0.;
 double dy = 0.;
 
 int drawRoots = 0;
+
+const char fractal[2][10] = {"newtonn", "mandel"};
+int frindex = 1;
 
 // Mouse
 int mouse_x, mouse_y;
@@ -208,9 +212,14 @@ void prepare() {
 
     /* Create data parallel OpenCL kernel */
 //     kernel = clCreateKernel(program, "newtonn", &ret);
-    kernel = clCreateKernel(program, "mandel", &ret);
+    kernel = clCreateKernel(program, fractal[frindex], &ret);
     if (ret != CL_SUCCESS)
-      fprintf(stderr, "Failed on function clCreateKernel: %d\n", ret);
+        fprintf(stderr, "Failed on function clCreateKernel: %d\n", ret);
+    
+    if (frindex == 1) {
+        nRoots = 200;
+    }
+    
     setKernelArgs();
 }
 
@@ -322,15 +331,12 @@ void key_pressed(unsigned char key, int x, int y) {
         case 'w':
             scale /= 2.;
             ret = clSetKernelArg(kernel, 4, sizeof(double), &scale);
-            step();
             break;
         case 's':
             scale *= 2.;
             ret = clSetKernelArg(kernel, 4, sizeof(double), &scale);
-            step();
             break;
         case 'p':
-//             glutIdleFunc(&display);
             fprintf(stderr, "(xc, xy) = (%.12g, %.12g), scale = %.12g\n", dx, dy, scale);
             break;
         case 'e':
@@ -338,10 +344,17 @@ void key_pressed(unsigned char key, int x, int y) {
             break;
         case 'r':
             initData();
-            step();
             break;
         case 'm':
             drawRoots = 1 - drawRoots;
+            break;
+        case 'd':
+            nRoots *= 2;
+            ret = clSetKernelArg(kernel, 7, sizeof(int), &nRoots);
+            break;
+        case 'a':
+            nRoots /= 2;
+            ret = clSetKernelArg(kernel, 7, sizeof(int), &nRoots);
             break;
         case 'q':
         	cleanup();
@@ -351,6 +364,8 @@ void key_pressed(unsigned char key, int x, int y) {
         default:
             break;
     }
+    
+    step();
 }
 
 void mouseFunc(int button, int state, int x,int y) {

@@ -173,6 +173,92 @@ inline struct Color applyShade(struct Color col, cfloat z, cfloat dz, cfloat v, 
     return newCol;
 }
 
+inline struct Color RGBtoHSL(struct Color rgb) {
+    struct Color hsl;
+    double cmin, cmax, delta;
+    
+    cmin = fmin(rgb.r, fmin(rgb.g, rgb.b));
+    cmax = fmax(rgb.r, fmax(rgb.g, rgb.b));
+    
+    delta = cmax - cmin;
+    
+    // Hue
+    if (delta == 0.) {
+        hsl.r = 0.;
+    } else if (cmax == rgb.r) {
+        hsl.r = 60. * fmod((rgb.g - rgb.b) / delta, 6.);
+    } else if (cmax == rgb.g) {
+        hsl.r = 60. * ((rgb.b - rgb.r) / delta + 2.);
+    } else {
+        hsl.r = 60. * ((rgb.r - rgb.g) / delta + 4.);
+    }
+    
+    // Lightness
+    hsl.b = (cmax + cmin) * 0.5;
+    
+    // Saturation
+    if (delta == 0.) {
+        hsl.g = 0.;
+    } else {
+        hsl.g = delta / (1 - fabs(2 * hsl.b - 1));
+    }
+    
+    return hsl;
+}
+
+inline struct Color HSLtoRGB(struct Color hsl) {
+    struct Color rgb;
+    double C, X, m;
+    
+    C = (1 - fabs(2. * hsl.b - 1.)) * hsl.g;
+    X = C * (1 - fabs(fmod(hsl.r / 60., 2) - 1));
+    m = hsl.b - C * 0.5;
+    
+    if (hsl.r < 60) {
+        rgb.r = C + m;
+        rgb.g = X + m;
+        rgb.b = m;
+    } else if (hsl.r < 120) {
+        rgb.r = X + m;
+        rgb.g = C + m;
+        rgb.b = m;
+    } else if (hsl.r < 180) {
+        rgb.r = m;
+        rgb.g = C + m;
+        rgb.b = X + m;
+    } else if (hsl.r < 240) {
+        rgb.r = m;
+        rgb.g = X + m;
+        rgb.b = C + m;
+    } else if (hsl.r < 300) {
+        rgb.r = X + m;
+        rgb.g = m;
+        rgb.b = C + m;
+    } else {
+        rgb.r = C + m;
+        rgb.g = m;
+        rgb.b = X + m;
+    }
+    
+    return rgb;
+}
+
+inline struct Color shade2(struct Color col, cfloat z, cfloat dz, cfloat v, double h) {
+    struct Color hsl;
+    cfloat u = cdiv(z, dz);
+    double norm = cmod(u);
+    
+    u.x = u.x / norm;
+    u.y = u.y / norm;
+    
+    double highlight = (u.x * v.x + u.y * v.y + h + 2) / (1. + h) - 1.;
+    hsl = RGBtoHSL(col);
+    
+    hsl.b = fmax(0., fmin(1., hsl.b + highlight));
+    
+    return HSLtoRGB(hsl);
+}
+
 __kernel void newtonn(global float *roots, global float *map, int nColours, global unsigned int *data, 
     double scale, double dx, double dy, int _nRoots)
 {
@@ -263,16 +349,13 @@ __kernel void mandel(global float *roots, global float *map, int nColours, globa
 	
 	double dist = 0.;
 	double thr = 100;
+	double maxIter = _nRoots;
+    
+    double h = 6.;
+    double phi = 45./360.;
+    cfloat v = ((cfloat)(cos(2 * M_PI * phi), sin(2 * M_PI * phi)));
 	
-	if (cmod(c) < 0.5) {	
-        data[index + 0] = 0;
-        data[index + 1] = 0;
-        data[index + 2] = 0;
-        
-	    return;
-	}
-	
-	for (i=0; i<20000; i++) {
+	for (i=0; i<maxIter; i++) {
 	    dz = two * m2(z, dz) + one;
         z = m2(z, z) + c;
         dist = cmod(z);
@@ -282,6 +365,14 @@ __kernel void mandel(global float *roots, global float *map, int nColours, globa
         }
 	}
 	
+	if (i > maxIter - 2) {	
+        data[index + 0] = 0;
+        data[index + 1] = 0;
+        data[index + 2] = 0;
+        
+	    return;
+	}
+	
 	index2 = 3 * ((int)(fabs((i + 1 - log(log(sqrt(dist)))/log(thr)))) % nColours);
 	
 	struct Color col;
@@ -289,6 +380,8 @@ __kernel void mandel(global float *roots, global float *map, int nColours, globa
 	col.r = map[index2 + 0];
 	col.g = map[index2 + 1];
 	col.b = map[index2 + 2];
+	
+	col = shade2(col, z, dz, v, h);
 	
 	data[index + 0] = col.r * 4294967295;
 	data[index + 1] = col.g * 4294967295;
