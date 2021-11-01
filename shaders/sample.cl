@@ -283,7 +283,7 @@ inline struct Color rotateHue(struct Color col, double theta) {
 }
 
 __kernel void newtonn(global float *roots, global float *map, int nColours, global unsigned int *data, 
-    double scale, double dx, double dy, int _nRoots)
+    double scale, double dx, double dy, int _nRoots, double __)
 {
 	const int x = get_global_id(0);
 	const int y = get_global_id(1);
@@ -349,7 +349,7 @@ __kernel void newtonn(global float *roots, global float *map, int nColours, glob
 }
 
 __kernel void mandel(global float *roots, global float *map, int nColours, global unsigned int *data, 
-    double scale, double dx, double dy, int _nRoots)
+    double scale, double dx, double dy, int _nRoots, double __)
 {
 	const int x = get_global_id(0);
 	const int y = get_global_id(1);
@@ -421,7 +421,7 @@ __kernel void mandel(global float *roots, global float *map, int nColours, globa
 }
 
 __kernel void wave(global float *roots, global float *map, int nColours, global unsigned int *data, 
-    double scale, double dx, double dy, int _nRoots)
+    double scale, double dx, double dy, int _nRoots, double thr)
 {
 	const int x = get_global_id(0);
 	const int y = get_global_id(1);
@@ -444,7 +444,7 @@ __kernel void wave(global float *roots, global float *map, int nColours, global 
 	
 	double dist = cmod(z);
 	double prevDist = dist;
-	double thr = 18;
+// 	double thr = 10;
 	double maxIter = _nRoots;
     
     double starFactor = 2 * 0.00000000012786458333;
@@ -490,7 +490,7 @@ __kernel void wave(global float *roots, global float *map, int nColours, global 
 // 	index2 += 3 * ((int)(minDist / starFactor + fabs((i + 1 - 0.1*log(log(sqrt(dist)))/log(thr))) / 2 + (carg(z) + M_PI) * 30) % nColours);
 	index2 += 3 * ((int)(2 * i) % nColours);
 // 	index2 += 3 * ((int)(minDist / starFactor) % nColours);
-	index2 += 3 * ((int)(log(log(sqrt(dist))) / sqrt(thr) * 300) % nColours);
+	index2 += 3 * ((int)(log(log(sqrt(dist))) / sqrt(thr) * 150) % nColours);
 // 	index2 += 3 * ((int)(carg(z) / M_PI * 180.) % nColours);
 	
 	struct Color col;
@@ -508,83 +508,83 @@ __kernel void wave(global float *roots, global float *map, int nColours, global 
 	data[index + 2] = col.b * 4294967295;
 }
 
-__kernel void newtonns(global float *roots, global float *map, int nColours, global unsigned int *data, 
-    double scale, double dx, double dy, int _nRoots)
-{
-	const int x = get_global_id(0);
-	const int y = get_global_id(1);
-	
-	const int W = get_global_size(0);
-	const int H = get_global_size(1);
-	
-	char nRoots = (char)_nRoots;
-	
-	int i;
-	int index, index2;
-	index = 3 * (W * y + x);
-	
-	double scale2 = 1. / H * scale;
-	
-	cfloat z = ((cfloat)(x * scale2 + dx - scale * 0.5 * W / H, y * scale2 + dy - scale * 0.5));
-	cfloat dz = ((cfloat)(1, 0));
-	cfloat croots[20];
-	
-	double theta = 0. * M_PI / 4.;
-	cfloat v = ((cfloat)(cos(theta), sin(theta)));
-	double h = 1;
-	
-	cfloat f0, f1, f2;
-	
-	for (i=0; i<nRoots; i++) {
-	    croots[i].x = roots[2*i];
-	    croots[i].y = roots[2*i+1];
-	}
-	
-	double dist, prevDist;
-	double thr = 1e-6;
-	
-	double minDist = 1000;
-	int minLoc = 2;
-	
-	for (i=0; i<2; i++) {
-        f0 = funcn(z, croots, nRoots);
-        f1 = derivn(z, croots, nRoots);
-        f2 = deriv2n(z, croots, nRoots);
-        
-        z = step2(z, f0, f1);
-        dz = m2(dz, cdiv(m2(f0, f2), m2(f1, f1)));
-	    
-	    for (int j=0; j<nRoots; j++) {
-	        dist = cmod(z - croots[j]);
-	        
-	        if (dist < minDist) {
-                prevDist = minDist;
-	            minDist = dist;
-	            minLoc = j;
-	        }
-	    }
-	        
-        if (minDist < thr) {
-            break;
-        }
-	}
-	
-	index2 = 3 * (nColours - 1);
-// 	index2 = 3 * ((int)(10. * (i - 0. * (log(thr) - log(minDist)) / (log(prevDist) - log(minDist)))) % nColours);
-// 	index2 = 3 * (int)(minLoc / (double)(nRoots) * nColours);
-	
-	struct Color col;
-	
-	col.r = map[index2 + 0];
-	col.g = map[index2 + 1];
-	col.b = map[index2 + 2];
-	
-	theta = 0.1 * M_PI * minLoc + 0.;
-	struct Matrix mat = hueRotation(theta);
-	col = applyMat(mat, col);
-	col = applyShade(col, z, dz, v, h);
-	
-	data[index + 0] = col.r * 4294967295;
-	data[index + 1] = col.g * 4294967295;
-	data[index + 2] = col.b * 4294967295;
-}
+// __kernel void newtonns(global float *roots, global float *map, int nColours, global unsigned int *data, 
+//     double scale, double dx, double dy, int _nRoots)
+// {
+// 	const int x = get_global_id(0);
+// 	const int y = get_global_id(1);
+// 	
+// 	const int W = get_global_size(0);
+// 	const int H = get_global_size(1);
+// 	
+// 	char nRoots = (char)_nRoots;
+// 	
+// 	int i;
+// 	int index, index2;
+// 	index = 3 * (W * y + x);
+// 	
+// 	double scale2 = 1. / H * scale;
+// 	
+// 	cfloat z = ((cfloat)(x * scale2 + dx - scale * 0.5 * W / H, y * scale2 + dy - scale * 0.5));
+// 	cfloat dz = ((cfloat)(1, 0));
+// 	cfloat croots[20];
+// 	
+// 	double theta = 0. * M_PI / 4.;
+// 	cfloat v = ((cfloat)(cos(theta), sin(theta)));
+// 	double h = 1;
+// 	
+// 	cfloat f0, f1, f2;
+// 	
+// 	for (i=0; i<nRoots; i++) {
+// 	    croots[i].x = roots[2*i];
+// 	    croots[i].y = roots[2*i+1];
+// 	}
+// 	
+// 	double dist, prevDist;
+// 	double thr = 1e-6;
+// 	
+// 	double minDist = 1000;
+// 	int minLoc = 2;
+// 	
+// 	for (i=0; i<2; i++) {
+//         f0 = funcn(z, croots, nRoots);
+//         f1 = derivn(z, croots, nRoots);
+//         f2 = deriv2n(z, croots, nRoots);
+//         
+//         z = step2(z, f0, f1);
+//         dz = m2(dz, cdiv(m2(f0, f2), m2(f1, f1)));
+// 	    
+// 	    for (int j=0; j<nRoots; j++) {
+// 	        dist = cmod(z - croots[j]);
+// 	        
+// 	        if (dist < minDist) {
+//                 prevDist = minDist;
+// 	            minDist = dist;
+// 	            minLoc = j;
+// 	        }
+// 	    }
+// 	        
+//         if (minDist < thr) {
+//             break;
+//         }
+// 	}
+// 	
+// 	index2 = 3 * (nColours - 1);
+// // 	index2 = 3 * ((int)(10. * (i - 0. * (log(thr) - log(minDist)) / (log(prevDist) - log(minDist)))) % nColours);
+// // 	index2 = 3 * (int)(minLoc / (double)(nRoots) * nColours);
+// 	
+// 	struct Color col;
+// 	
+// 	col.r = map[index2 + 0];
+// 	col.g = map[index2 + 1];
+// 	col.b = map[index2 + 2];
+// 	
+// 	theta = 0.1 * M_PI * minLoc + 0.;
+// 	struct Matrix mat = hueRotation(theta);
+// 	col = applyMat(mat, col);
+// 	col = applyShade(col, z, dz, v, h);
+// 	
+// 	data[index + 0] = col.r * 4294967295;
+// 	data[index + 1] = col.g * 4294967295;
+// 	data[index + 2] = col.b * 4294967295;
+// }
