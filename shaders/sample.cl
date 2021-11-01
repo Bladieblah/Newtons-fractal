@@ -433,17 +433,18 @@ __kernel void wave(global float *roots, global float *map, int nColours, global 
 	int index, index2;
 	index = 3 * (W * y + x);
 	
-	double scale2 = 1. / H * scale;
+	double scale2 = scale / H;
 	
 	cfloat z = ((cfloat)(x * scale2 + dx - scale * 0.5 * W / H, y * scale2 + dy - scale * 0.5));
-	cfloat sz;
+	cfloat sz, zPrev;
 	
 	double minDist = cmod(z);
 	
 	cfloat dz = ((cfloat)(1, 0));
 	
-	double dist = 0.;
-	double thr = 20;
+	double dist = cmod(z);
+	double prevDist = dist;
+	double thr = 18;
 	double maxIter = _nRoots;
     
     double starFactor = 2 * 0.00000000012786458333;
@@ -454,6 +455,7 @@ __kernel void wave(global float *roots, global float *map, int nColours, global 
     cfloat v = ((cfloat)(cos(2 * M_PI * phi), sin(2 * M_PI * phi)));
 	
 	for (i=0; i<maxIter; i++) {
+	    zPrev = z;
         if (i % 2 == 0) {
             sz = csin(m2(z, z));
             z = z + cdiv(z - sz, z + sz);
@@ -461,27 +463,34 @@ __kernel void wave(global float *roots, global float *map, int nColours, global 
             z = m2(z, z);
         }
         
+        prevDist = dist;
         dist = cmod(z);
-        minDist = fmin(minDist, dist);
+//         minDist = fmin(minDist, dist);
         
         if (dist > thr) {
             break;
         }
+        
+        if (z.x != z.x) {
+            z = zPrev;
+            dist = prevDist;
+            break;
+        }
 	}
 	
-// 	if (i > maxIter - 2) {	
-//         data[index + 0] = 0;
-//         data[index + 1] = 0;
-//         data[index + 2] = 0;
-//         
-// 	    return;
-// 	}
+	if (i > maxIter - 2) {	
+        data[index + 0] = 0;
+        data[index + 1] = 0;
+        data[index + 2] = 0;
+        
+	    return;
+	}
 	
 	index2 = 0;
 // 	index2 += 3 * ((int)(minDist / starFactor + fabs((i + 1 - 0.1*log(log(sqrt(dist)))/log(thr))) / 2 + (carg(z) + M_PI) * 30) % nColours);
 	index2 += 3 * ((int)(2 * i) % nColours);
 // 	index2 += 3 * ((int)(minDist / starFactor) % nColours);
-// 	index2 += 3 * ((int)(log(log(sqrt(dist))) / sqrt(thr) * 300) % nColours);
+	index2 += 3 * ((int)(log(log(sqrt(dist))) / sqrt(thr) * 300) % nColours);
 // 	index2 += 3 * ((int)(carg(z) / M_PI * 180.) % nColours);
 	
 	struct Color col;
@@ -490,7 +499,7 @@ __kernel void wave(global float *roots, global float *map, int nColours, global 
 	col.g = map[index2 + 1];
 	col.b = map[index2 + 2];
 	
-	double theta = 0.1 * carg(z) / M_PI * 180;
+	double theta = carg(z) / M_PI * 180;
 // 	col = rotateHue(col, theta);
 // 	col = shade2(col, z, dz, v, h);
 	

@@ -113,13 +113,14 @@ std::complex<double> mandelStep(std::complex<double> z, std::complex<double> c) 
 
 std::complex<double> waveStep(std::complex<double> z, int i) {
     if (i % 2 == 0) {
-        return z + (z - sin(z)) /  (z + sin(z));
+        std::complex<double> sz = sin(z*z);
+        return z + (z - sz) / (z + sz);
     }
     
     return z * z;
 }
 
-std::complex<double> fractalStep(std::complex <double> z, std::complex<double> c = 0, int i = 0) {
+std::complex<double> fractalStep(std::complex <double> z, std::complex<double> c, int i) {
     switch (frindex) {
         case 0:
             return newtonStep(z);
@@ -355,7 +356,7 @@ void drawPath() {
     double xpos = mouse_x * scale2 + dx - scale * 0.5 * size_x / size_y;
     double ypos = (size_y - mouse_y) * scale2 + dy - scale * 0.5;
     
-    int N = 10000;
+    int N = nRoots;
     
     std::complex<double> z;
     std::complex<double> c (xpos, ypos);
@@ -366,7 +367,7 @@ void drawPath() {
         z = c;
     }
     
-    x = 2 * (c.real() - dx) / scale * size_y / (float)size_x;
+    x = 2 * (c.real() - dx) / scale * size_y / (double)size_x;
     y = 2 * (c.imag() - dy) / scale;
     
     glColor4f(1.,1.,1.,1.);
@@ -374,12 +375,13 @@ void drawPath() {
     
     for (k=0; k<N; k++) {
         glVertex2f(x, y);
-        x = 2 * (z.real() - dx) / scale * size_y / (float)size_x;
+        x = 2 * (z.real() - dx) / scale * size_y / (double)size_x;
         y = 2 * (z.imag() - dy) / scale;
         glVertex2f(x, y);
         
         z = fractalStep(z, c, k);
     }
+    fprintf(stderr, "\n");
     
     glEnd();
     
