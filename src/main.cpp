@@ -73,12 +73,67 @@ double dy = 0.;
 int drawRoots = 0;
 
 const char fractal[3][10] = {"newtonn", "mandel", "wave"};
-int frindex = 1;
+int frindex = 2;
 
 // Mouse
 int mouse_x, mouse_y;
 int zoom = 1;
 int mouseState;
+
+std::complex<double> getRoot(int i) {
+    std::complex<double> root (roots[2*i], roots[2*i + 1]);
+    return root;
+}
+
+std::complex<double> newtonStep(std::complex<double> z) {
+    std::complex<double> fn;
+    std::complex<double> df, df_;
+    
+    fn = z - getRoot(0);
+    for (int i=1; i<nRoots; i++) {
+        fn *= z - getRoot(i);
+    }
+    
+    df = 0;
+    for (int i=0; i<nRoots; i++) {
+        df_ = z - getRoot(i);
+        for (int j=0; j<nRoots-1; j++) {
+            df_ *= z - getRoot((i + j) % nRoots);
+        }
+        df += df_;
+    }
+    
+    return z - fn / df;
+    
+}
+
+std::complex<double> mandelStep(std::complex<double> z, std::complex<double> c) {
+    return z*z + c;
+}
+
+std::complex<double> waveStep(std::complex<double> z, int i) {
+    if (i % 2 == 0) {
+        return z + (z - sin(z)) /  (z + sin(z));
+    }
+    
+    return z * z;
+}
+
+std::complex<double> fractalStep(std::complex <double> z, std::complex<double> c = 0, int i = 0) {
+    switch (frindex) {
+        case 0:
+            return newtonStep(z);
+            break;
+        case 1:
+            return mandelStep(z, c);
+            break;
+        case 2:
+            return waveStep(z, i);
+            break;
+    }
+    
+    return waveStep(z, i);
+}
 
 // Functions
 
@@ -300,13 +355,19 @@ void drawPath() {
     double xpos = mouse_x * scale2 + dx - scale * 0.5 * size_x / size_y;
     double ypos = (size_y - mouse_y) * scale2 + dy - scale * 0.5;
     
-    int N = 1000;
+    int N = 10000;
     
-    std::complex<double> z = 0;
-    std::complex<double> c;
-    c = {xpos, ypos};
-    x = 2 * (z.real() - dx) / scale * size_y / (float)size_x;
-    y = 2 * (z.imag() - dy) / scale;
+    std::complex<double> z;
+    std::complex<double> c (xpos, ypos);
+    
+    if (frindex == 1) {
+        z = 0;
+    } else {
+        z = c;
+    }
+    
+    x = 2 * (c.real() - dx) / scale * size_y / (float)size_x;
+    y = 2 * (c.imag() - dy) / scale;
     
     glColor4f(1.,1.,1.,1.);
     glBegin(GL_LINE_STRIP);
@@ -317,9 +378,7 @@ void drawPath() {
         y = 2 * (z.imag() - dy) / scale;
         glVertex2f(x, y);
         
-//         fprintf(stderr, "(%d, %d) => (%.2g, %.2g) => (%.2g, %.2g) => (%.2g, %.2g)\n", mouse_x, mouse_y, xpos, ypos, z.real(), z.imag(), x, y);
-        
-        z = z*z + c;
+        z = fractalStep(z, c, k);
     }
     
     glEnd();
@@ -338,9 +397,7 @@ void drawPath() {
         glColor4f(pointMap[3*k + 0],pointMap[13*k + 1],pointMap[3*k + 2],1.);
         glVertex2f(x, y);
         
-//         fprintf(stderr, "(%d, %d) => (%.2g, %.2g) => (%.2g, %.2g) => (%.2g, %.2g)\n", mouse_x, mouse_y, xpos, ypos, z.real(), z.imag(), x, y);
-        
-        z = z*z + c;
+        z = fractalStep(z, c, k);
     }
     
     glEnd();
@@ -397,7 +454,7 @@ void display() {
         glEnd();
     }
     
-    if ((!zoom || frindex == 0)) {
+    if (!zoom) {
         drawPath();
     }
     
@@ -471,7 +528,7 @@ void mouseFunc(int button, int state, int x,int y) {
 	        }
 	    }
 	    
-	    if (rootIndex == -1 && zoom) {
+	    if ((frindex != 0 || rootIndex == -1) && zoom) {
         
             dx = xpos;
             dy = ypos;

@@ -10,30 +10,9 @@ inline double cmod(cfloat a){
     return (sqrt(a.x*a.x + a.y*a.y));
 }
 
-inline float carg(cfloat a){
-    if(a.x > 0){
-        return atan(a.y / a.x);
-
-    }else if(a.x < 0 && a.y >= 0){
-        return atan(a.y / a.x) + M_PI;
-
-    }else if(a.x < 0 && a.y < 0){
-        return atan(a.y / a.x) - M_PI;
-
-    }else if(a.x == 0 && a.y > 0){
-        return M_PI/2;
-
-    }else if(a.x == 0 && a.y < 0){
-        return -M_PI/2;
-
-    }else{
-        return 0;
-    }
+inline double carg(cfloat a){
+    return fmod(atan2(a.y, a.x) + 4 * M_PI, M_PI);
 }
-
-// inline float carg(cfloat a){
-//     return atan2(a.y, a.x);
-// }
 
 inline cfloat m2(cfloat a, cfloat b){
     return (cfloat)( a.x*b.x - a.y*b.y, a.x*b.y + a.y*b.x);
@@ -384,21 +363,20 @@ __kernel void mandel(global float *roots, global float *map, int nColours, globa
 	
 	double scale2 = 1. / H * scale;
 	
-	cfloat z = ((cfloat)(x * scale2 + dx - scale * 0.5 * W / H, y * scale2 + dy - scale * 0.5));
-// 	cfloat z = ((cfloat)(0, 0));
+	cfloat c = ((cfloat)(x * scale2 + dx - scale * 0.5 * W / H, y * scale2 + dy - scale * 0.5));
+	cfloat z = ((cfloat)(0, 0));
 	cfloat one = ((cfloat)(1, 0));
 	cfloat two = ((cfloat)(2, 2));
-	cfloat sz;
 	
-	double minDist = cmod(z);
+	double minDist = cmod(c);
 	
 	cfloat dz = one;
 	
 	double dist = 0.;
-	double thr = 2;
+	double thr = 20;
 	double maxIter = _nRoots;
     
-    double starFactor = 2 * 0.12786458333;
+    double starFactor = 2 * 0.000012786458333;
     starFactor = 1.;
     
     double h = 6.;
@@ -406,17 +384,10 @@ __kernel void mandel(global float *roots, global float *map, int nColours, globa
     cfloat v = ((cfloat)(cos(2 * M_PI * phi), sin(2 * M_PI * phi)));
 	
 	for (i=0; i<maxIter; i++) {
-// 	    dz = two * m2(z, dz) + one;
-//         z = m2(z, z) + c;
-        
-        if (i % 2 == 0) {
-            sz = csin(m2(z, z));
-            z = z + cdiv(z - sz, z + sz);
-        } else {
-            z = m2(z, z);
-        }
-        
+	    dz = two * m2(z, dz) + one;
+        z = m2(z, z) + c;
         dist = cmod(z);
+        
         minDist = fmin(minDist, dist);
         
         if (dist > thr) {
@@ -441,7 +412,7 @@ __kernel void mandel(global float *roots, global float *map, int nColours, globa
 	col.b = map[index2 + 2];
 	
 	double theta = 0.1 * carg(z) / M_PI * 180;
-// 	col = rotateHue(col, theta);
+	col = rotateHue(col, theta);
 	col = shade2(col, z, dz, v, h);
 	
 	data[index + 0] = col.r * 4294967295;
@@ -466,51 +437,52 @@ __kernel void wave(global float *roots, global float *map, int nColours, global 
 	
 	cfloat z = ((cfloat)(x * scale2 + dx - scale * 0.5 * W / H, y * scale2 + dy - scale * 0.5));
 	cfloat sz;
-// 	cfloat z = ((cfloat)(0, 0));
-// 	cfloat one = ((cfloat)(1, 0));
-// 	cfloat two = ((cfloat)(2, 2));
 	
-// 	cfloat dz = one;
+	double minDist = cmod(z);
 	
-	double prevDist = 0.;
+	cfloat dz = ((cfloat)(1, 0));
+	
 	double dist = 0.;
-	double thr = 1e-6;
+	double thr = 20;
 	double maxIter = _nRoots;
-	cfloat stable = ((cfloat)(0.09164377571541366, 0));
     
-//     double h = 6.;
-//     double phi = 45./360.;
-//     cfloat v = ((cfloat)(cos(2 * M_PI * phi), sin(2 * M_PI * phi)));
+    double starFactor = 2 * 0.00000000012786458333;
+    starFactor = 1.;
+    
+    double h = 6.;
+    double phi = 45./360.;
+    cfloat v = ((cfloat)(cos(2 * M_PI * phi), sin(2 * M_PI * phi)));
 	
 	for (i=0; i<maxIter; i++) {
-// 	    dz = two * m2(z, dz) + one;
-        
-        prevDist = dist;
-        
         if (i % 2 == 0) {
             sz = csin(m2(z, z));
-            z = cdiv(z - sz, z + sz);
+            z = z + cdiv(z - sz, z + sz);
         } else {
             z = m2(z, z);
         }
         
+        dist = cmod(z);
+        minDist = fmin(minDist, dist);
         
-        dist = cmod(z - stable);
-        
-        if (dist < thr) {
+        if (dist > thr) {
             break;
         }
 	}
 	
-	if (i > maxIter - 2) {	
-        data[index + 0] = 0;
-        data[index + 1] = 0;
-        data[index + 2] = 0;
-        
-	    return;
-	}
+// 	if (i > maxIter - 2) {	
+//         data[index + 0] = 0;
+//         data[index + 1] = 0;
+//         data[index + 2] = 0;
+//         
+// 	    return;
+// 	}
 	
-	index2 = 3 * ((int)(10. * (i - 2. * (log(thr) - log(dist)) / (log(prevDist) - log(dist)))) % nColours);
+	index2 = 0;
+// 	index2 += 3 * ((int)(minDist / starFactor + fabs((i + 1 - 0.1*log(log(sqrt(dist)))/log(thr))) / 2 + (carg(z) + M_PI) * 30) % nColours);
+	index2 += 3 * ((int)(2 * i) % nColours);
+// 	index2 += 3 * ((int)(minDist / starFactor) % nColours);
+// 	index2 += 3 * ((int)(log(log(sqrt(dist))) / sqrt(thr) * 300) % nColours);
+// 	index2 += 3 * ((int)(carg(z) / M_PI * 180.) % nColours);
 	
 	struct Color col;
 	
@@ -518,6 +490,8 @@ __kernel void wave(global float *roots, global float *map, int nColours, global 
 	col.g = map[index2 + 1];
 	col.b = map[index2 + 2];
 	
+	double theta = 0.1 * carg(z) / M_PI * 180;
+// 	col = rotateHue(col, theta);
 // 	col = shade2(col, z, dz, v, h);
 	
 	data[index + 0] = col.r * 4294967295;
