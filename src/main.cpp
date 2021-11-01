@@ -25,8 +25,8 @@
 #define MAX_SOURCE_SIZE (0x100000)
 
 // Window size
-#define size_x 1920
-#define size_y 1080
+#define size_x 2400
+#define size_y 1300
 
 // OpenCL initialisation
 cl_platform_id platform_id = NULL;
@@ -52,7 +52,8 @@ unsigned int data[size_y*size_x*3];
 
 // Colourmap stuff
 float *colourMap;
-int nColours = 3840;
+float *pointMap;
+int nColours = 384;
 
 // Kernel size for parallelisation
 size_t global_item_size[2] = {(size_t)size_x, (size_t)size_y};
@@ -71,11 +72,13 @@ double dy = 0.;
 
 int drawRoots = 0;
 
-const char fractal[2][10] = {"newtonn", "mandel"};
+const char fractal[3][10] = {"newtonn", "mandel", "wave"};
 int frindex = 1;
 
 // Mouse
 int mouse_x, mouse_y;
+int zoom = 1;
+int mouseState;
 
 // Functions
 
@@ -97,19 +100,28 @@ void makeColourmap() {
 //         {64, 192, 0},
 //         {0, 0, 64}
 //     };
+    std::vector<float> x2 = {0., 0.5, 1.};
+    std::vector< std::vector<float> > y2 = {
+        {255, 100, 0},
+        {0, 255, 100},
+        {100, 0, 255}
+    };
 
 //     std::vector<float> x = {0., 1.};
 //     std::vector< std::vector<float> > y = {
-//         {0, 0, 0},
+//         {100, 0, 0},
 // //         {255,255,255},
-//         {255,255,255}
+//         {255,0,0}
 //     };
 
     Colour col(x, y, nColours);
+    Colour col2(x2, y2, nColours);
     
     colourMap = (float *)malloc(3 * nColours * sizeof(float));
+    pointMap = (float *)malloc(3 * nColours * sizeof(float));
     
     col.apply(colourMap);
+    col2.apply(pointMap);
     
     // Write colourmap to GPU
     ret = clEnqueueWriteBuffer(command_queue, mapmobj, CL_TRUE, 0, 3*nColours*sizeof(float), colourMap, 0, NULL, NULL);
@@ -157,6 +169,18 @@ void initData() {
     }
     
     scale = 2; dx = 0; dy = 0;
+    
+    if (frindex != 0) {
+        nRoots = 200;
+    }
+
+//     scale = 0.000000125169754;
+//     dx = 0.374839144945144;
+//     dy = 0.095639694956283;
+//     
+//     dx = 0.374839140798777;
+//     dy = 0.095639681189519; 
+//     scale = 0.000000002115452;
 }
 
 void prepare() {
@@ -216,10 +240,6 @@ void prepare() {
     if (ret != CL_SUCCESS)
         fprintf(stderr, "Failed on function clCreateKernel: %d\n", ret);
     
-    if (frindex == 1) {
-        nRoots = 200;
-    }
-    
     setKernelArgs();
 }
 
@@ -273,6 +293,61 @@ void setRoot(int x, int y) {
     }
 }
 
+void drawPath() {
+    int k;
+    double x, y;
+    scale2 = 1. / size_y * scale;
+    double xpos = mouse_x * scale2 + dx - scale * 0.5 * size_x / size_y;
+    double ypos = (size_y - mouse_y) * scale2 + dy - scale * 0.5;
+    
+    int N = 1000;
+    
+    std::complex<double> z = 0;
+    std::complex<double> c;
+    c = {xpos, ypos};
+    x = 2 * (z.real() - dx) / scale * size_y / (float)size_x;
+    y = 2 * (z.imag() - dy) / scale;
+    
+    glColor4f(1.,1.,1.,1.);
+    glBegin(GL_LINE_STRIP);
+    
+    for (k=0; k<N; k++) {
+        glVertex2f(x, y);
+        x = 2 * (z.real() - dx) / scale * size_y / (float)size_x;
+        y = 2 * (z.imag() - dy) / scale;
+        glVertex2f(x, y);
+        
+//         fprintf(stderr, "(%d, %d) => (%.2g, %.2g) => (%.2g, %.2g) => (%.2g, %.2g)\n", mouse_x, mouse_y, xpos, ypos, z.real(), z.imag(), x, y);
+        
+        z = z*z + c;
+    }
+    
+    glEnd();
+    
+    z = {xpos, ypos};
+    
+    glPointSize(3);
+    glEnable(GL_POINT_SMOOTH);
+    
+    glBegin(GL_POINTS);
+    
+    for (k=0; k<nColours; k++) {
+        x = 2 * (z.real() - dx) / scale * size_y / (float)size_x;
+        y = 2 * (z.imag() - dy) / scale;
+                
+        glColor4f(pointMap[3*k + 0],pointMap[13*k + 1],pointMap[3*k + 2],1.);
+        glVertex2f(x, y);
+        
+//         fprintf(stderr, "(%d, %d) => (%.2g, %.2g) => (%.2g, %.2g) => (%.2g, %.2g)\n", mouse_x, mouse_y, xpos, ypos, z.real(), z.imag(), x, y);
+        
+        z = z*z + c;
+    }
+    
+    glEnd();
+    
+    glColor4f(1,1,1,1);
+}
+
 void display() {
     setRoot(mouse_x, mouse_y);
     
@@ -306,7 +381,7 @@ void display() {
     glFlush();
     
     // Draw points at roots
-    if (drawRoots) {
+    if (drawRoots && frindex == 0) {
         glPointSize(10);
         glColor4f(1.,1.,1.,1.);
         glEnable(GL_POINT_SMOOTH);
@@ -320,6 +395,10 @@ void display() {
         }
     
         glEnd();
+    }
+    
+    if ((!zoom || frindex == 0)) {
+        drawPath();
     }
     
     glutSwapBuffers();
@@ -344,6 +423,7 @@ void key_pressed(unsigned char key, int x, int y) {
             break;
         case 'r':
             initData();
+            setKernelArgs();
             break;
         case 'm':
             drawRoots = 1 - drawRoots;
@@ -361,6 +441,9 @@ void key_pressed(unsigned char key, int x, int y) {
         	fprintf(stderr, "\n");
             exit(0);
             break;
+        case 'z':
+            zoom = 1 - zoom;
+            break;
         default:
             break;
     }
@@ -374,8 +457,10 @@ void mouseFunc(int button, int state, int x,int y) {
     double ypos = (size_y - y) * scale2 + dy - scale * 0.5;
     
     rootIndex = -1;
+    mouseState = state;
     
 	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
+	    fprintf(stderr, "(x, y) = (%.3g, %.3g)\n", xpos, ypos);
 	    float dist;
 	    
 	    for (int i=0; i<nRoots; i++) {
@@ -386,16 +471,16 @@ void mouseFunc(int button, int state, int x,int y) {
 	        }
 	    }
 	    
-	    if (rootIndex == -1) {
+	    if (rootIndex == -1 && zoom) {
         
             dx = xpos;
             dy = ypos;
         
             ret = clSetKernelArg(kernel, 5, sizeof(double), &dx);
             ret = clSetKernelArg(kernel, 6, sizeof(double), &dy);
-        }
         
-        step();
+            step();
+        }
 	}
 }
 

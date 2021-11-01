@@ -10,12 +10,44 @@ inline double cmod(cfloat a){
     return (sqrt(a.x*a.x + a.y*a.y));
 }
 
+inline float carg(cfloat a){
+    if(a.x > 0){
+        return atan(a.y / a.x);
+
+    }else if(a.x < 0 && a.y >= 0){
+        return atan(a.y / a.x) + M_PI;
+
+    }else if(a.x < 0 && a.y < 0){
+        return atan(a.y / a.x) - M_PI;
+
+    }else if(a.x == 0 && a.y > 0){
+        return M_PI/2;
+
+    }else if(a.x == 0 && a.y < 0){
+        return -M_PI/2;
+
+    }else{
+        return 0;
+    }
+}
+
+// inline float carg(cfloat a){
+//     return atan2(a.y, a.x);
+// }
+
 inline cfloat m2(cfloat a, cfloat b){
     return (cfloat)( a.x*b.x - a.y*b.y, a.x*b.y + a.y*b.x);
 }
 
 inline cfloat cdiv(cfloat a, cfloat b){
     return (cfloat)((a.x*b.x + a.y*b.y)/(b.x*b.x + b.y*b.y), (a.y*b.x - a.x*b.y)/(b.x*b.x + b.y*b.y));
+}
+
+inline cfloat csin(cfloat z) {
+    double epz = exp(z.y);
+    double emz = exp(-z.y);
+    
+    return ((cfloat)(0.5 * sin(z.x) * (epz + emz), 0.5 * cos(z.x) * (epz - emz)));
 }
 
 inline cfloat funcn(cfloat x, cfloat *z, char n) {
@@ -186,7 +218,7 @@ inline struct Color RGBtoHSL(struct Color rgb) {
     if (delta == 0.) {
         hsl.r = 0.;
     } else if (cmax == rgb.r) {
-        hsl.r = 60. * fmod((rgb.g - rgb.b) / delta, 6.);
+        hsl.r = 60. * (rgb.g - rgb.b) / delta;
     } else if (cmax == rgb.g) {
         hsl.r = 60. * ((rgb.b - rgb.r) / delta + 2.);
     } else {
@@ -209,6 +241,8 @@ inline struct Color RGBtoHSL(struct Color rgb) {
 inline struct Color HSLtoRGB(struct Color hsl) {
     struct Color rgb;
     double C, X, m;
+    
+    hsl.r = fmod(fmod(hsl.r, 360.) + 360, 360);
     
     C = (1 - fabs(2. * hsl.b - 1.)) * hsl.g;
     X = C * (1 - fabs(fmod(hsl.r / 60., 2) - 1));
@@ -251,10 +285,20 @@ inline struct Color shade2(struct Color col, cfloat z, cfloat dz, cfloat v, doub
     u.x = u.x / norm;
     u.y = u.y / norm;
     
-    double highlight = (u.x * v.x + u.y * v.y + h + 2) / (1. + h) - 1.;
+    double highlight = (u.x * v.x + u.y * v.y + h + 2) / (1. + h) - 1.1;
     hsl = RGBtoHSL(col);
     
-    hsl.b = fmax(0., fmin(1., hsl.b + highlight));
+    hsl.b = fmax(0., fmin(1., hsl.b + 0.5 * highlight));
+    
+    return HSLtoRGB(hsl);
+}
+
+inline struct Color rotateHue(struct Color col, double theta) {
+    struct Color hsl;
+    
+    hsl = RGBtoHSL(col);
+    
+    hsl.r = fmod(fmod(hsl.r + theta, 360) + 360, 360);
     
     return HSLtoRGB(hsl);
 }
@@ -340,25 +384,40 @@ __kernel void mandel(global float *roots, global float *map, int nColours, globa
 	
 	double scale2 = 1. / H * scale;
 	
-	cfloat c = ((cfloat)(x * scale2 + dx - scale * 0.5 * W / H, y * scale2 + dy - scale * 0.5));
-	cfloat z = ((cfloat)(0, 0));
+	cfloat z = ((cfloat)(x * scale2 + dx - scale * 0.5 * W / H, y * scale2 + dy - scale * 0.5));
+// 	cfloat z = ((cfloat)(0, 0));
 	cfloat one = ((cfloat)(1, 0));
 	cfloat two = ((cfloat)(2, 2));
+	cfloat sz;
+	
+	double minDist = cmod(z);
 	
 	cfloat dz = one;
 	
 	double dist = 0.;
-	double thr = 100;
+	double thr = 2;
 	double maxIter = _nRoots;
+    
+    double starFactor = 2 * 0.12786458333;
+    starFactor = 1.;
     
     double h = 6.;
     double phi = 45./360.;
     cfloat v = ((cfloat)(cos(2 * M_PI * phi), sin(2 * M_PI * phi)));
 	
 	for (i=0; i<maxIter; i++) {
-	    dz = two * m2(z, dz) + one;
-        z = m2(z, z) + c;
+// 	    dz = two * m2(z, dz) + one;
+//         z = m2(z, z) + c;
+        
+        if (i % 2 == 0) {
+            sz = csin(m2(z, z));
+            z = z + cdiv(z - sz, z + sz);
+        } else {
+            z = m2(z, z);
+        }
+        
         dist = cmod(z);
+        minDist = fmin(minDist, dist);
         
         if (dist > thr) {
             break;
@@ -373,7 +432,7 @@ __kernel void mandel(global float *roots, global float *map, int nColours, globa
 	    return;
 	}
 	
-	index2 = 3 * ((int)(fabs((i + 1 - log(log(sqrt(dist)))/log(thr)))) % nColours);
+	index2 = 3 * ((int)(minDist / starFactor + fabs((i + 1 - log(log(sqrt(dist)))/log(thr))) / 2) % nColours);
 	
 	struct Color col;
 	
@@ -381,7 +440,85 @@ __kernel void mandel(global float *roots, global float *map, int nColours, globa
 	col.g = map[index2 + 1];
 	col.b = map[index2 + 2];
 	
+	double theta = 0.1 * carg(z) / M_PI * 180;
+// 	col = rotateHue(col, theta);
 	col = shade2(col, z, dz, v, h);
+	
+	data[index + 0] = col.r * 4294967295;
+	data[index + 1] = col.g * 4294967295;
+	data[index + 2] = col.b * 4294967295;
+}
+
+__kernel void wave(global float *roots, global float *map, int nColours, global unsigned int *data, 
+    double scale, double dx, double dy, int _nRoots)
+{
+	const int x = get_global_id(0);
+	const int y = get_global_id(1);
+	
+	const int W = get_global_size(0);
+	const int H = get_global_size(1);
+	
+	int i;
+	int index, index2;
+	index = 3 * (W * y + x);
+	
+	double scale2 = 1. / H * scale;
+	
+	cfloat z = ((cfloat)(x * scale2 + dx - scale * 0.5 * W / H, y * scale2 + dy - scale * 0.5));
+	cfloat sz;
+// 	cfloat z = ((cfloat)(0, 0));
+// 	cfloat one = ((cfloat)(1, 0));
+// 	cfloat two = ((cfloat)(2, 2));
+	
+// 	cfloat dz = one;
+	
+	double prevDist = 0.;
+	double dist = 0.;
+	double thr = 1e-6;
+	double maxIter = _nRoots;
+	cfloat stable = ((cfloat)(0.09164377571541366, 0));
+    
+//     double h = 6.;
+//     double phi = 45./360.;
+//     cfloat v = ((cfloat)(cos(2 * M_PI * phi), sin(2 * M_PI * phi)));
+	
+	for (i=0; i<maxIter; i++) {
+// 	    dz = two * m2(z, dz) + one;
+        
+        prevDist = dist;
+        
+        if (i % 2 == 0) {
+            sz = csin(m2(z, z));
+            z = cdiv(z - sz, z + sz);
+        } else {
+            z = m2(z, z);
+        }
+        
+        
+        dist = cmod(z - stable);
+        
+        if (dist < thr) {
+            break;
+        }
+	}
+	
+	if (i > maxIter - 2) {	
+        data[index + 0] = 0;
+        data[index + 1] = 0;
+        data[index + 2] = 0;
+        
+	    return;
+	}
+	
+	index2 = 3 * ((int)(10. * (i - 2. * (log(thr) - log(dist)) / (log(prevDist) - log(dist)))) % nColours);
+	
+	struct Color col;
+	
+	col.r = map[index2 + 0];
+	col.g = map[index2 + 1];
+	col.b = map[index2 + 2];
+	
+// 	col = shade2(col, z, dz, v, h);
 	
 	data[index + 0] = col.r * 4294967295;
 	data[index + 1] = col.g * 4294967295;
