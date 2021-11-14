@@ -447,12 +447,14 @@ __kernel void wave(global float *roots, global float *map, int nColours, global 
 // 	double thr = 10;
 	double maxIter = _nRoots;
     
-    double starFactor = 2 * 0.00000000012786458333;
-    starFactor = 1.;
+    double starFactor = 2 * 0.012786458333;
+//     starFactor = 1.;
     
     double h = 6.;
     double phi = 45./360.;
     cfloat v = ((cfloat)(cos(2 * M_PI * phi), sin(2 * M_PI * phi)));
+    
+    double arg = 0;
 	
 	for (i=0; i<maxIter; i++) {
 	    zPrev = z;
@@ -463,9 +465,10 @@ __kernel void wave(global float *roots, global float *map, int nColours, global 
             z = m2(z, z);
         }
         
+        arg += fabs((carg(z) - carg(zPrev)) / pow(cmod(z), 2));
         prevDist = dist;
         dist = cmod(z);
-//         minDist = fmin(minDist, dist);
+        minDist = fmin(minDist, dist);
         
         if (dist > thr) {
             break;
@@ -487,11 +490,13 @@ __kernel void wave(global float *roots, global float *map, int nColours, global 
 	}
 	
 	index2 = 0;
-// 	index2 += 3 * ((int)(minDist / starFactor + fabs((i + 1 - 0.1*log(log(sqrt(dist)))/log(thr))) / 2 + (carg(z) + M_PI) * 30) % nColours);
-	index2 += 3 * ((int)(2 * i) % nColours);
-// 	index2 += 3 * ((int)(minDist / starFactor) % nColours);
-	index2 += 3 * ((int)(log(log(sqrt(dist))) / sqrt(thr) * 150) % nColours);
-// 	index2 += 3 * ((int)(carg(z) / M_PI * 180.) % nColours);
+// 	index2 += minDist / starFactor + fabs((i + 1 - 0.1*log(log(sqrt(dist)))/log(thr))) / 2 + (carg(z) + M_PI) * 30) % nColours);
+	index2 += 8 * i;
+	index2 += fabs(log(minDist)) / starFactor;
+	index2 += log(log(sqrt(dist))) / sqrt(thr) * 150;
+	index2 += sqrt(arg / M_PI * 180.);
+	
+	index2 = 3 * ((int)index2 % nColours);
 	
 	struct Color col;
 	
@@ -499,7 +504,7 @@ __kernel void wave(global float *roots, global float *map, int nColours, global 
 	col.g = map[index2 + 1];
 	col.b = map[index2 + 2];
 	
-	double theta = carg(z) / M_PI * 180;
+// 	double theta = carg(z) / M_PI * 180;
 // 	col = rotateHue(col, theta);
 // 	col = shade2(col, z, dz, v, h);
 	

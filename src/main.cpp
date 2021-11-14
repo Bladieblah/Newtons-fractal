@@ -141,6 +141,7 @@ std::complex<double> fractalStep(std::complex <double> z, std::complex<double> c
 // Functions
 
 void makeColourmap() {
+    int i,j,k;
     std::vector<float> x = {0., 0.2, 0.4, 0.6, 0.8, 1.};
     std::vector< std::vector<float> > y = {
         {26,17,36},
@@ -695,11 +696,22 @@ void makeColourmap() {
     Colour col(x, y, nColours);
     Colour col2(x2, y2, nColours);
     
-    colourMap = (float *)malloc(3 * nColours * sizeof(float));
+    colourMap = (float *)malloc(6 * nColours * sizeof(float));
     pointMap = (float *)malloc(3 * nColours * sizeof(float));
     
     inferno.apply(colourMap);
     col2.apply(pointMap);
+    
+    for (i=0; i<nColours; i++) {
+        j = 3 * (2 * nColours - 1 - i);
+        
+        for (k=0; k<3; k++){
+            colourMap[j + k] = colourMap[3*i + k];
+        }
+    }
+    
+    nColours *= 2;
+    ret = clSetKernelArg(kernel, 2, sizeof(int), &nColours);
     
     // Write colourmap to GPU
     ret = clEnqueueWriteBuffer(command_queue, mapmobj, CL_TRUE, 0, 3*nColours*sizeof(float), colourMap, 0, NULL, NULL);
@@ -799,7 +811,7 @@ void prepare() {
 
     /* Create Buffer Object */
     rootmobj = clCreateBuffer(context, CL_MEM_READ_WRITE, 3*nRoots*sizeof(float), NULL, &ret);
-    mapmobj  = clCreateBuffer(context, CL_MEM_READ_WRITE, 3*nColours*sizeof(float), NULL, &ret);
+    mapmobj  = clCreateBuffer(context, CL_MEM_READ_WRITE, 6*nColours*sizeof(float), NULL, &ret);
     datamobj = clCreateBuffer(context, CL_MEM_READ_WRITE, 3*size_x*size_y*sizeof(unsigned int), NULL, &ret);
 
     /* Create kernel program from source file*/

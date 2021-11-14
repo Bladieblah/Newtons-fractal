@@ -30,7 +30,9 @@ vector<float> Colour::get(float p) {
 }
 
 void Colour::apply(float *colourMap) {
-    for (int i=0; i<size; i++)
-        for (int j=0; j<3; j++)
+    for (int i=0; i<size; i++) {
+        for (int j=0; j<3; j++) {
             colourMap[3 * i + j] = map[i][j];
+        }
+    }
 }
