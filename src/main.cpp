@@ -20,13 +20,14 @@
 #include <GLUT/glut.h>
 
 #include "colour.hpp"
+#include "bezier_chain.hpp"
 
 // For loading shader files
 #define MAX_SOURCE_SIZE (0x100000)
 
 // Window size
-#define size_x 2400
-#define size_y 1300
+#define size_x 720
+#define size_y 480
 
 // OpenCL initialisation
 cl_platform_id platform_id = NULL;
@@ -50,14 +51,20 @@ char *source_str;
 // Array to be drawn
 unsigned int data[size_y*size_x*3];
 
+// Kernel size for parallelisation
+size_t global_item_size[2] = {(size_t)size_x, (size_t)size_y};
+size_t local_item_size[2] = {(size_t)size_x, (size_t)size_y};
+
 // Colourmap stuff
 float *colourMap;
 float *pointMap;
 int nColours = 384/2;
+int displayColour = 1;
 
-// Kernel size for parallelisation
-size_t global_item_size[2] = {(size_t)size_x, (size_t)size_y};
-size_t local_item_size[2] = {(size_t)size_x, (size_t)size_y};
+// Bezier
+BezierChain *redChain, *greenChain, *blueChain;
+int bezierLoc[2] = {-1, -1};
+char bezierCol = 'b';
 
 // Roots
 float *roots;
@@ -72,9 +79,9 @@ double dy = 0.;
 
 int drawRoots = 0;
 
-const char fractal[3][10] = {"newtonn", "mandel", "wave"};
+// General config
+const char fractal[3][10] = {"newton", "mandel", "wave"};
 int frindex = 2;
-
 double threshold = 10.;
 
 // Mouse
@@ -82,6 +89,37 @@ int mouse_x, mouse_y;
 int zoom = 1;
 int mouseState;
 
+// Helpers for bezier
+
+typedef struct pixelCoords {
+    int x;
+    int y;
+} pixelCoords;
+
+typedef struct windowCoords {
+    float x;
+    float y;
+} windowCoords;
+
+windowCoords pixToWin(pixelCoords ppos) {
+    windowCoords wpos;
+    
+    wpos.x = (2 * ppos.x - size_x) / (float)size_x;
+    wpos.y = (size_y - 2 * ppos.y) / (float)size_y;
+    
+    return wpos;
+}
+
+pixelCoords winToPix(windowCoords wpos) {
+    pixelCoords ppos;
+    
+    ppos.x = (wpos.x * size_x + size_x) / 2;
+    ppos.x = (wpos.y * size_y + size_y) / 2;
+    
+    return ppos;
+}
+
+// Diagnostics for fractals
 std::complex<double> getRoot(int i) {
     std::complex<double> root (roots[2*i], roots[2*i + 1]);
     return root;
@@ -696,9 +734,6 @@ void makeColourmap() {
     Colour col(x, y, nColours);
     Colour col2(x2, y2, nColours);
     
-    colourMap = (float *)malloc(6 * nColours * sizeof(float));
-    pointMap = (float *)malloc(3 * nColours * sizeof(float));
-    
     inferno.apply(colourMap);
     col2.apply(pointMap);
     
@@ -711,9 +746,8 @@ void makeColourmap() {
     }
     
     nColours *= 2;
-    ret = clSetKernelArg(kernel, 2, sizeof(int), &nColours);
     
-    // Write colourmap to GPU
+    // Write colourmap to buffer
     ret = clEnqueueWriteBuffer(command_queue, mapmobj, CL_TRUE, 0, 3*nColours*sizeof(float), colourMap, 0, NULL, NULL);
 }
 
@@ -732,31 +766,12 @@ void setKernelArgs() {
 }
 
 void initData() {
-//     float offset[10] = {0.1, 0, -0.1, 0.2, 0.4, 0, 0.1, 0.2, -0.1, 0.3};
-//     float theta;
-//     
-//     for (int i=0; i<nRoots; i++) {
-//         theta = 2 * M_PI / nRoots * i;// + offset[i];
-//         roots[2*i] = cos(theta) / 2.;
-//         roots[2*i + 1] = sin(theta) / 2.;
-//     }
-
-//     float a = 0.5;
-//     float b = 0.1;
-//     float c = 0.25;
-//     float d = 0.1;
-//     
-//     for (int i=0; i<nRoots; i++) {
-//         roots[2*i + 0] = c * i + d;
-//         roots[2*i + 1] = c * (a * i * i * i + b);
-//     }
-
-    roots[0] = 1; roots[1] = 0;
-    roots[2] = 0; roots[3] = 1;
-    roots[4] = -1; roots[5] = 0;
+    float theta;
     
     for (int i=0; i<nRoots; i++) {
-        fprintf(stderr, "(%.2f, %.2f)\n", roots[2*i], roots[2*i+1]);
+        theta = 2 * M_PI / nRoots * i;// + offset[i];
+        roots[2*i] = cos(theta) / 2.;
+        roots[2*i + 1] = sin(theta) / 2.;
     }
     
     scale = 2; dx = 0; dy = 0;
@@ -773,30 +788,37 @@ void initData() {
 //     dy = 0.095639681189519; 
 //     scale = 0.000000002115452;
 //     
-    dx = 0.824615384615;
-    dy = -0.243076923077; 
-    scale = 0.5;
+//     dx = 0.824615384615;
+//     dy = -0.243076923077; 
+//     scale = 0.5;
 }
 
-void prepare() {
+void readShader() {
     FILE *fp;
-    const char fileName[] = "./shaders/sample.cl";
+    const char fileName[] = "/Users/Matthijs/Documents/GPU Prog/Newtons-fractal/shaders/sample.cl";
     
     fp = fopen(fileName, "r");
     if (!fp) {
         fprintf(stderr, "Failed to load kernel.\n");
         exit(1);
     }
-    source_str = (char *)malloc(MAX_SOURCE_SIZE);
     source_size = fread(source_str, 1, MAX_SOURCE_SIZE, fp);
     fclose(fp);
+}
+
+void allocateMemory() {
+    /* Create Buffer Objects */
+    rootmobj = clCreateBuffer(context, CL_MEM_READ_WRITE, 3*nRoots*sizeof(float), NULL, &ret);
+    mapmobj  = clCreateBuffer(context, CL_MEM_READ_WRITE, 6*nColours*sizeof(float), NULL, &ret);
+    datamobj = clCreateBuffer(context, CL_MEM_READ_WRITE, 3*size_x*size_y*sizeof(unsigned int), NULL, &ret);
     
-    srand(time(NULL));
-    
+    source_str = (char *)malloc(MAX_SOURCE_SIZE);
+    colourMap = (float *)malloc(6 * nColours * sizeof(float));
+    pointMap = (float *)malloc(3 * nColours * sizeof(float));
     roots = (float *)malloc(2 * nRoots * sizeof(float));
-    
-    initData();
-    
+}
+
+void initOpenCL() {
     /* Get Platform/Device Information */
     ret = clGetPlatformIDs(1, &platform_id, &ret_num_platforms);
     ret = clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_GPU, 1, &device_id, &ret_num_devices);
@@ -808,12 +830,7 @@ void prepare() {
 
     /* Create command queue */
     command_queue = clCreateCommandQueue(context, device_id, 0, &ret);
-
-    /* Create Buffer Object */
-    rootmobj = clCreateBuffer(context, CL_MEM_READ_WRITE, 3*nRoots*sizeof(float), NULL, &ret);
-    mapmobj  = clCreateBuffer(context, CL_MEM_READ_WRITE, 6*nColours*sizeof(float), NULL, &ret);
-    datamobj = clCreateBuffer(context, CL_MEM_READ_WRITE, 3*size_x*size_y*sizeof(unsigned int), NULL, &ret);
-
+    
     /* Create kernel program from source file*/
     program = clCreateProgramWithSource(context, 1, (const char **)&source_str, (const size_t *)&source_size, &ret);
     if (ret != CL_SUCCESS)
@@ -834,7 +851,15 @@ void prepare() {
     kernel = clCreateKernel(program, fractal[frindex], &ret);
     if (ret != CL_SUCCESS)
         fprintf(stderr, "Failed on function clCreateKernel: %d\n", ret);
-    
+}
+
+void prepare() {
+    srand(time(NULL));
+    allocateMemory();
+    readShader();
+    initData();
+    initOpenCL();
+    makeColourmap();
     setKernelArgs();
 }
 
@@ -852,10 +877,10 @@ void cleanup() {
     ret = clReleaseCommandQueue(command_queue);
     ret = clReleaseContext(context);
 
-    free(roots);
-    free(colourMap);
-    
     free(source_str);
+    free(colourMap);
+    free(pointMap);
+    free(roots);
 }
 
 void step() {
@@ -873,6 +898,10 @@ void step() {
     std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
     fprintf(stderr, "step time = %.3g\n", time_span.count());
+    
+//     for (int i=0; i<size_x*size_y; i++) {
+//         fprintf(stderr, "%d ", data[3*i]);
+//     }
 }
 
 void setRoot(int x, int y) {
@@ -942,8 +971,6 @@ void drawPath() {
     }
     
     glEnd();
-    
-    glColor4f(1,1,1,1);
 }
 
 void display() {
@@ -999,6 +1026,8 @@ void display() {
         drawPath();
     }
     
+    glColor4f(1,1,1,1);
+    
     glutSwapBuffers();
 }
 
@@ -1032,7 +1061,7 @@ void key_pressed(unsigned char key, int x, int y) {
             ret = clSetKernelArg(kernel, 7, sizeof(int), &nRoots);
             break;
         case 'q':
-        	cleanup();
+//         	cleanup();
         	fprintf(stderr, "\n");
             exit(0);
             break;
@@ -1047,6 +1076,8 @@ void key_pressed(unsigned char key, int x, int y) {
         case 'z':
             zoom = 1 - zoom;
             break;
+        case 'c':
+            displayColour = 1 - displayColour;
         default:
             break;
     }
@@ -1094,7 +1125,6 @@ void motionFunc(int x, int y) {
 
 int main(int argc, char **argv) {
     prepare();
-    makeColourmap();
     
 	glutInit( &argc, argv );
     glutInitDisplayMode( GLUT_RGBA | GLUT_DOUBLE );
