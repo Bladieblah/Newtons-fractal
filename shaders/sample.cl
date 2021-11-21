@@ -444,11 +444,9 @@ __kernel void wave(global float *roots, global float *map, int nColours, global 
 	
 	double dist = cmod(z);
 	double prevDist = dist;
-// 	double thr = 10;
 	double maxIter = _nRoots;
     
     double starFactor = 2 * 0.012786458333;
-//     starFactor = 1.;
     
     double h = 6.;
     double phi = 45./360.;
